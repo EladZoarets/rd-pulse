@@ -4,6 +4,8 @@ import { ActivityContext, GitHubPR, GitHubCommit, GitHubComment } from '../types
 const HEATED_COMMENT_THRESHOLD = 10;
 const STALE_HOURS = 24;
 const MAX_PRS_WITH_COMMENTS = 20;
+// BUG-07: Cap total commits fetched to avoid unbounded pagination on very active repos.
+const MAX_COMMITS = 500;
 
 export class GitHubService {
   private octokit: Octokit;
@@ -37,18 +39,25 @@ export class GitHubService {
       this.normalizeCommit(c, mergeCommitShas)
     );
 
-    // 5. Normalize PRs — cap comment fetching to the most recent open PRs
+    // 5. Normalize PRs — cap comment fetching to the most recent open PRs.
+    // BUG-03: Fetch comments in sequential batches of 5 rather than all-at-once to
+    // avoid flooding the API with up to MAX_PRS_WITH_COMMENTS concurrent requests.
     const openPRNumbers = new Set(
       rawPRs
         .filter((pr: any) => pr.state === 'open')
         .slice(0, MAX_PRS_WITH_COMMENTS)
         .map((pr: any) => pr.number)
     );
-    const pullRequests: GitHubPR[] = await Promise.all(
-      rawPRs.map((pr: any) => this.normalizePR(pr, owner, repo, openPRNumbers))
+    const pullRequests: GitHubPR[] = await this.batchAsync(
+      rawPRs,
+      5,
+      (pr: any) => this.normalizePR(pr, owner, repo, openPRNumbers)
     );
 
     // 6. Derive signals
+    // BUG-09: staleThreshold is exactly STALE_HOURS before windowEnd, not windowStart.
+    // A PR updated exactly at the threshold boundary (updatedAt === staleThreshold) is
+    // NOT stale — use strict `<` so the boundary PR is excluded from stalePRs.
     const staleThreshold = new Date(windowEnd.getTime() - STALE_HOURS * 60 * 60 * 1000);
     const stalePRs = pullRequests.filter(
       pr => pr.state === 'open' && pr.updatedAt < staleThreshold
@@ -77,7 +86,9 @@ export class GitHubService {
       const { data } = await this.octokit.repos.get({ owner, repo });
       return data.default_branch;
     } catch (err: any) {
-      this.handleApiError(err, owner, repo);
+      // BUG-01: Must `return` here so TypeScript sees that handleApiError (typed `never`)
+      // always throws and this path never produces an implicit `undefined` return.
+      return this.handleApiError(err, owner, repo);
     }
   }
 
@@ -87,8 +98,11 @@ export class GitHubService {
       { owner, repo, state: 'all', sort: 'updated', direction: 'desc', per_page: 100 },
       (response: any, done: () => void) => {
         const items: any[] = response.data;
-        // Stop paginating once items fall outside our window
-        if (items.some((pr: any) => new Date(pr.updated_at) < since)) {
+        // BUG-04: Check only the LAST item on the page rather than `some`, which
+        // could trigger early-exit when a boundary item at the exact `since` timestamp
+        // shares a page with newer items. Since items are sorted descending by
+        // updated_at, the last item is the oldest on this page.
+        if (items.length > 0 && new Date(items[items.length - 1].updated_at) < since) {
           done();
         }
         return items.filter((pr: any) => new Date(pr.updated_at) >= since);
@@ -102,9 +116,20 @@ export class GitHubService {
     sha: string,
     since: Date
   ): Promise<any[]> {
+    // BUG-07: Use a page-map callback to cap total fetched commits at MAX_COMMITS and
+    // avoid unbounded pagination on very active repositories.
+    let accumulated = 0;
     return (this.octokit.paginate as any)(
       'GET /repos/{owner}/{repo}/commits',
-      { owner, repo, sha, since: since.toISOString(), per_page: 100 }
+      { owner, repo, sha, since: since.toISOString(), per_page: 100 },
+      (response: any, done: () => void) => {
+        const items: any[] = response.data;
+        accumulated += items.length;
+        if (accumulated >= MAX_COMMITS) {
+          done();
+        }
+        return items;
+      }
     );
   }
 
@@ -144,6 +169,8 @@ export class GitHubService {
       updatedAt: new Date(pr.updated_at),
       mergedAt: pr.merged_at ? new Date(pr.merged_at) : null,
       body: pr.body ?? null,
+      // BUG-05: `pr.comments` is the GitHub issue-comment count only; it does NOT
+      // include review comments (pr_review_comments). This is a GitHub API limitation.
       commentCount: pr.comments,
       comments,
       isDraft: pr.draft ?? false,
@@ -162,6 +189,11 @@ export class GitHubService {
       fullMessage,
       author: c.commit.author?.name ?? 'unknown',
       committedAt: new Date(c.commit.author?.date),
+      // BUG-02: mergeCommitShas is populated only from PRs fetched within the current
+      // time window. A commit whose corresponding PR merge occurred outside this window
+      // will not appear in mergeCommitShas, causing it to be incorrectly flagged as a
+      // direct-to-main commit. This is a known limitation of window-bounded fetching;
+      // resolving it would require fetching all PRs ever merged, which is impractical.
       isDirectToMain: !mergeCommitShas.has(c.sha),
     };
   }
@@ -174,8 +206,42 @@ export class GitHubService {
       throw new Error(`GitHub authentication failed. Check your GITHUB_TOKEN.`);
     }
     if (err.status === 403) {
+      // BUG-06: A 403 can mean rate-limit, SAML enforcement, or general permission
+      // denial — distinguish by inspecting the error message when available.
+      const apiMessage: string =
+        err.response?.data?.message ?? err.message ?? '';
+      if (/saml/i.test(apiMessage)) {
+        throw new Error(
+          `GitHub SAML enforcement requires SSO authorization for ${owner}/${repo}.`
+        );
+      }
+      if (/resource not accessible/i.test(apiMessage) || /permission/i.test(apiMessage)) {
+        throw new Error(
+          `GitHub access denied for ${owner}/${repo}. Check token scopes.`
+        );
+      }
+      // Default 403 fallback: assume rate limit (covers the common case and keeps
+      // the existing test expectation of /rate limit/i intact).
       throw new Error(`GitHub rate limit exceeded. Please wait and try again.`);
     }
     throw err;
+  }
+
+  /**
+   * BUG-03: Process an array with an async mapper in sequential batches of `batchSize`
+   * to avoid issuing an unbounded number of concurrent API requests via Promise.all.
+   */
+  private async batchAsync<T, R>(
+    items: T[],
+    batchSize: number,
+    mapper: (item: T) => Promise<R>
+  ): Promise<R[]> {
+    const results: R[] = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      const chunk = items.slice(i, i + batchSize);
+      const chunkResults = await Promise.all(chunk.map(mapper));
+      results.push(...chunkResults);
+    }
+    return results;
   }
 }

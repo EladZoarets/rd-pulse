@@ -1,5 +1,5 @@
 import { GitHubService } from '../services/GitHubService';
-import { ActivityContext, GitHubPR, GitHubCommit } from '../types';
+import { GitHubPR, GitHubCommit } from '../types';
 
 // ── Octokit mock ──────────────────────────────────────────────────────────────
 
@@ -63,13 +63,26 @@ function setupDefaultMocks() {
   mockOctokit.repos.get.mockResolvedValue({
     data: { default_branch: 'main' },
   });
-  mockOctokit.paginate.mockImplementation((fn: unknown, params: Record<string, unknown>) => {
-    // Return PRs or commits based on the URL pattern in params
-    if (params && 'state' in params) {
-      return Promise.resolve([makeRawPR()]);
+  // BUG-08: Support the 3-argument paginate form (fn, params, mapFn) used by fetchPRs
+  // and fetchCommits. When a mapFn is provided, call it with a synthetic response object
+  // and a no-op `done` function so the production page-map callbacks are exercised.
+  mockOctokit.paginate.mockImplementation(
+    (_fn: unknown, params: Record<string, unknown>, mapFn?: (response: { data: unknown[] }, done: () => void) => unknown[]) => {
+      let rawItems: unknown[];
+      // Distinguish PR vs commit requests by the presence of the `state` param.
+      if (params && 'state' in params) {
+        rawItems = [makeRawPR()];
+      } else {
+        rawItems = [makeRawCommit()];
+      }
+      if (typeof mapFn === 'function') {
+        const done = jest.fn();
+        const mapped = mapFn({ data: rawItems }, done);
+        return Promise.resolve(mapped);
+      }
+      return Promise.resolve(rawItems);
     }
-    return Promise.resolve([makeRawCommit()]);
-  });
+  );
   mockOctokit.issues.listComments.mockResolvedValue({ data: [makeRawComment()] });
 }
 
@@ -249,6 +262,30 @@ describe('GitHubService', () => {
       const result = await service.fetchActivity('acme', 'backend');
       expect(result.directCommits).toHaveLength(0);
       expect(result.commits[0].isDirectToMain).toBe(false);
+    });
+  });
+
+  // ── fetchActivity — pagination early-termination (BUG-08) ──────────────────
+
+  describe('fetchActivity — pagination page-map callback', () => {
+    it('calls done() via the page-map when the last PR on a page predates the window', async () => {
+      // Arrange: the PR paginate call receives a mapFn; verify done() is invoked
+      // when the last item on the page is older than `since`.
+      const doneMock = jest.fn();
+      mockOctokit.paginate.mockImplementationOnce(
+        (_fn: unknown, _params: unknown, mapFn?: (response: { data: unknown[] }, done: () => void) => unknown[]) => {
+          const staleItem = makeRawPR({ updated_at: TWO_DAYS_AGO.toISOString() });
+          if (typeof mapFn === 'function') {
+            mapFn({ data: [staleItem] }, doneMock);
+          }
+          return Promise.resolve([]);
+        }
+      );
+      // Commits call returns empty
+      mockOctokit.paginate.mockImplementationOnce(() => Promise.resolve([]));
+
+      await service.fetchActivity('acme', 'backend', 1);
+      expect(doneMock).toHaveBeenCalledTimes(1);
     });
   });
 
