@@ -1,0 +1,25 @@
+{
+  "name": "rd-pulse",
+  "version": "0.1.0",
+  "description": "AI-powered R&D intelligence agent that transforms GitHub activity into actionable daily digests",
+  "main": "dist/index.js",
+  "bin": {
+    "rd-pulse": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.2",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
+    "openai": "^4.67.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  }
+}
