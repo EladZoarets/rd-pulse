@@ -8,7 +8,7 @@
 - [x] Task 3 — Project structure (stub files for all services)
 
 ### Services
-- [ ] Task 4 — `GitHubService.ts` — fetch PRs, commits, comments via @octokit/rest with pagination
+- [x] Task 4 — `GitHubService.ts` — fetch PRs, commits, comments via @octokit/rest with pagination
 - [ ] Task 5 — `IntelligenceService.ts` — build LLM prompt, context window management, call OpenAI
 - [ ] Task 6 — `FormatterService.ts` — convert AnalysisResult to structured DAILY_PULSE.md
 

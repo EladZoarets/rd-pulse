@@ -3,6 +3,7 @@ import { ActivityContext, GitHubPR, GitHubCommit, GitHubComment } from '../types
 
 const HEATED_COMMENT_THRESHOLD = 10;
 const STALE_HOURS = 24;
+const MAX_PRS_WITH_COMMENTS = 20;
 
 export class GitHubService {
   private octokit: Octokit;
@@ -36,9 +37,15 @@ export class GitHubService {
       this.normalizeCommit(c, mergeCommitShas)
     );
 
-    // 5. Normalize PRs and fetch comments for open ones
+    // 5. Normalize PRs — cap comment fetching to the most recent open PRs
+    const openPRNumbers = new Set(
+      rawPRs
+        .filter((pr: any) => pr.state === 'open')
+        .slice(0, MAX_PRS_WITH_COMMENTS)
+        .map((pr: any) => pr.number)
+    );
     const pullRequests: GitHubPR[] = await Promise.all(
-      rawPRs.map((pr: any) => this.normalizePR(pr, owner, repo))
+      rawPRs.map((pr: any) => this.normalizePR(pr, owner, repo, openPRNumbers))
     );
 
     // 6. Derive signals
@@ -77,7 +84,15 @@ export class GitHubService {
   private async fetchPRs(owner: string, repo: string, since: Date): Promise<any[]> {
     return (this.octokit.paginate as any)(
       'GET /repos/{owner}/{repo}/pulls',
-      { owner, repo, state: 'all', since: since.toISOString(), per_page: 100 }
+      { owner, repo, state: 'all', sort: 'updated', direction: 'desc', per_page: 100 },
+      (response: any, done: () => void) => {
+        const items: any[] = response.data;
+        // Stop paginating once items fall outside our window
+        if (items.some((pr: any) => new Date(pr.updated_at) < since)) {
+          done();
+        }
+        return items.filter((pr: any) => new Date(pr.updated_at) >= since);
+      }
     );
   }
 
@@ -93,13 +108,21 @@ export class GitHubService {
     );
   }
 
-  private async normalizePR(pr: any, owner: string, repo: string): Promise<GitHubPR> {
+  private async normalizePR(
+    pr: any,
+    owner: string,
+    repo: string,
+    fetchCommentsFor?: Set<number>
+  ): Promise<GitHubPR> {
     const state: 'open' | 'closed' | 'merged' = pr.merged_at
       ? 'merged'
       : (pr.state as 'open' | 'closed');
 
+    const shouldFetchComments = pr.state === 'open' &&
+      (fetchCommentsFor === undefined || fetchCommentsFor.has(pr.number));
+
     let comments: GitHubComment[] = [];
-    if (pr.state === 'open') {
+    if (shouldFetchComments) {
       const { data: rawComments } = await this.octokit.issues.listComments({
         owner,
         repo,
