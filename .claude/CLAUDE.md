@@ -115,6 +115,18 @@ npm run test:watch    # watch mode during development
 
 ---
 
+## Task Completion Pipeline — mandatory
+
+After every task, run the full quality gate in this order:
+
+1. **`/chaos`** — stress test the diff. Find failure scenarios, edge cases, and regression risks. If verdict is `[FAIL]`, fix all breaking scenarios before proceeding.
+2. **`/code-review`** — review for design adherence, code cleanliness, and spec compliance. Address all findings.
+3. **Commit & push** — only after both `/chaos` and `/code-review` pass.
+
+No task is complete until all three steps are done. Never skip chaos or code review, even for small changes.
+
+---
+
 ## Definition of Done
 
 A task is done when:
@@ -122,5 +134,7 @@ A task is done when:
 1. All tests pass (`npm test` exits 0)
 2. No `tsc --noEmit` errors
 3. No `any` types in production code
-4. The feature works end-to-end (manual smoke test where applicable)
-5. `TODO.md` checkbox is ticked
+4. `/chaos` verdict is `[PASS]`
+5. `/code-review` has been completed
+6. The feature works end-to-end (manual smoke test where applicable)
+7. `TODO.md` checkbox is ticked
