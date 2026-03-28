@@ -57,8 +57,17 @@ cp .env.example .env
 ```
 
 ```env
+# Stage 1
 GITHUB_TOKEN=your_github_token_here
 OPENAI_API_KEY=your_openai_api_key_here
+
+# Stage 2 (coming soon)
+SLACK_BOT_TOKEN=your_slack_bot_token_here
+SLACK_CHANNEL_IDS=C01234567,C07654321
+JIRA_HOST=https://your-org.atlassian.net
+JIRA_EMAIL=you@yourorg.com
+JIRA_API_TOKEN=your_jira_api_token_here
+JIRA_PROJECT_KEYS=ENG,INFRA
 ```
 
 ### Usage
@@ -83,9 +92,11 @@ src/
 ├── index.ts                      # CLI entry point (commander)
 ├── types.ts                      # Shared TypeScript interfaces
 ├── services/
-│   ├── GitHubService.ts          # GitHub API integration
-│   ├── IntelligenceService.ts    # LLM prompt engineering
-│   └── FormatterService.ts       # Markdown report builder
+│   ├── GitHubService.ts          # GitHub API — PRs, commits, comments
+│   ├── IntelligenceService.ts    # LLM prompt engineering and analysis
+│   ├── FormatterService.ts       # Markdown report builder
+│   ├── SlackService.ts           # Slack API — messages and threads (Stage 2)
+│   └── JiraService.ts            # Jira API — tickets and activity (Stage 2)
 └── utils/
     ├── logger.ts                 # Console output helpers
     └── tokenCounter.ts           # Context window management
@@ -96,10 +107,11 @@ src/
 ## Roadmap
 
 - [x] Project scaffold and type definitions
-- [ ] GitHubService — fetch PRs, commits, comments
+- [x] GitHubService — fetch PRs, commits, comments (with pagination + rate limit handling)
 - [ ] IntelligenceService — LLM analysis with context window management
 - [ ] FormatterService — structured Markdown output
 - [ ] CLI orchestration and error handling
-- [ ] Stage 2: Slack integration
-- [ ] Stage 2: Jira integration
+- [ ] Stage 2: SlackService — fetch messages and threads
+- [ ] Stage 2: JiraService — fetch ticket activity
+- [ ] Stage 2: Cross-source correlation (GitHub ↔ Slack ↔ Jira)
 - [ ] Stage 2: Email delivery
