@@ -1,11 +1,23 @@
+const HEADER = `
+██████╗ ██████╗       ██████╗ ██╗   ██╗██╗     ███████╗███████╗
+██╔══██╗██╔══██╗      ██╔══██╗██║   ██║██║     ██╔════╝██╔════╝
+██████╔╝██║  ██║█████╗██████╔╝██║   ██║██║     ███████╗█████╗
+██╔══██╗██║  ██║╚════╝██╔═══╝ ██║   ██║██║     ╚════██║██╔══╝
+██║  ██║██████╔╝      ██║     ╚██████╔╝███████╗███████║███████╗
+╚═╝  ╚═╝╚═════╝       ╚═╝      ╚═════╝ ╚══════╝╚══════╝╚══════╝
+`.trim();
+
 export function printHeader(): void {
-  throw new Error('Not implemented');
+  console.log(`\n${HEADER}\n`);
 }
 
 export function log(message: string): void {
-  throw new Error('Not implemented');
+  const ts = new Date().toISOString().slice(11, 19); // HH:MM:SS
+  console.log(`[${ts}] ${message}`);
 }
 
-export function handleFatalError(err: Error, context: string): never {
-  throw new Error('Not implemented');
+export function handleFatalError(err: unknown, context: string): never {
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error(`\n[FATAL] ${context}: ${msg}\n`);
+  process.exit(1);
 }

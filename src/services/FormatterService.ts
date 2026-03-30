@@ -1,4 +1,4 @@
-import { AnalysisResult, FeatureTheme } from '../types';
+import { AnalysisResult, ContributorSummary, FeatureTheme } from '../types';
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -14,6 +14,32 @@ function renderHeader(result: AnalysisResult): string {
 
 function renderManagersNote(note: string): string {
   return `## Manager's Note\n\n${note}`;
+}
+
+function renderContributor(c: ContributorSummary): string {
+  const riskBadge = c.risk ? ' ⚠️ AT RISK' : '';
+  const lines = [`### ${sanitizeLine(c.name)}${riskBadge}`];
+
+  lines.push(
+    `- **Merged:** ${c.prsMerged} PR${c.prsMerged !== 1 ? 's' : ''} · **Open:** ${c.prsOpen} · **Commits:** ${c.commitsCount}`
+  );
+
+  if (c.highlights.length > 0) {
+    lines.push(...c.highlights.map((h) => `- ${sanitizeLine(h)}`));
+  }
+
+  if (c.risk) {
+    lines.push(`- ⚠️ ${sanitizeLine(c.risk)}`);
+  }
+
+  return lines.join('\n');
+}
+
+function renderContributors(contributors: ContributorSummary[]): string {
+  const atRisk = contributors.filter((c) => c.risk !== null);
+  const healthy = contributors.filter((c) => c.risk === null);
+  const ordered = [...atRisk, ...healthy];
+  return ['## Team Progress', ...ordered.map(renderContributor)].join('\n\n');
 }
 
 function renderFeatureTheme(theme: FeatureTheme): string {
@@ -40,6 +66,7 @@ function renderBulletList(heading: string, items: string[]): string {
 
 export class FormatterService {
   format(result: AnalysisResult): string {
+    const contributors = result.contributors ?? [];
     const featureThemes = result.featureThemes ?? [];
     const keyAchievements = result.keyAchievements ?? [];
     const workInProgress = result.workInProgress ?? [];
@@ -49,6 +76,8 @@ export class FormatterService {
 
     if (result.managersNote.trim())
       sections.push(renderManagersNote(result.managersNote));
+    if (contributors.length > 0)
+      sections.push(renderContributors(contributors));
     if (featureThemes.length > 0)
       sections.push(renderFeatureThemes(featureThemes));
     if (keyAchievements.filter((i) => i.trim()).length > 0)

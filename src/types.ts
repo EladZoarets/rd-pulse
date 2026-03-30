@@ -50,9 +50,19 @@ export interface FeatureTheme {
   summary: string;
 }
 
+export interface ContributorSummary {
+  name: string;
+  prsMerged: number;
+  prsOpen: number;
+  commitsCount: number;
+  highlights: string[];  // what they shipped or progressed
+  risk: string | null;   // null = healthy; string = risk description
+}
+
 export interface AnalysisResult {
   repo: string;
   generatedAt: Date;
+  contributors: ContributorSummary[];
   featureThemes: FeatureTheme[];
   keyAchievements: string[];
   workInProgress: string[];

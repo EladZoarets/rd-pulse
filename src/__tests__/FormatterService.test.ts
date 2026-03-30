@@ -1,13 +1,27 @@
 import { FormatterService } from '../services/FormatterService';
-import { AnalysisResult } from '../types';
+import { AnalysisResult, ContributorSummary } from '../types';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const NOW = new Date('2024-06-15T12:00:00Z');
 
+const makeContributor = (overrides: Partial<ContributorSummary> = {}): ContributorSummary => ({
+  name: 'alice',
+  prsMerged: 2,
+  prsOpen: 1,
+  commitsCount: 5,
+  highlights: ['Merged PR #1: add auth', 'Merged PR #2: fix tokens'],
+  risk: null,
+  ...overrides,
+});
+
 const makeResult = (overrides: Partial<AnalysisResult> = {}): AnalysisResult => ({
   repo: 'acme/backend',
   generatedAt: NOW,
+  contributors: [
+    makeContributor(),
+    makeContributor({ name: 'bob', prsMerged: 0, prsOpen: 2, commitsCount: 1, highlights: ['PR #42: rate limiting'], risk: 'No merged work despite 2 open PRs' }),
+  ],
   featureThemes: [
     { name: 'Auth', commits: ['feat: add OAuth2', 'fix: refresh tokens'], summary: 'OAuth2 login shipped' },
     { name: 'Payments', commits: ['feat: stripe integration'], summary: 'Stripe payments added' },
@@ -86,6 +100,42 @@ describe('FormatterService', () => {
       expect(output).toContain('Risks');
       expect(output).toContain('PR #38 stale for 7 days');
       expect(output).toContain('Direct push to main by bob');
+    });
+
+    // ── Contributors ──────────────────────────────────────────────────────────
+
+    it('includes a Team Progress section with contributor names', () => {
+      const output = service.format(makeResult());
+      expect(output).toContain('Team Progress');
+      expect(output).toContain('alice');
+      expect(output).toContain('bob');
+    });
+
+    it('shows merged/open PR and commit counts per contributor', () => {
+      const output = service.format(makeResult());
+      expect(output).toContain('**Merged:** 2');
+      expect(output).toContain('**Open:** 2');
+    });
+
+    it('flags at-risk contributors with ⚠️ AT RISK badge', () => {
+      const output = service.format(makeResult());
+      expect(output).toContain('bob ⚠️ AT RISK');
+      expect(output).toContain('No merged work despite 2 open PRs');
+    });
+
+    it('does not flag healthy contributors', () => {
+      const output = service.format(makeResult());
+      expect(output).not.toContain('alice ⚠️');
+    });
+
+    it('lists at-risk contributors before healthy ones', () => {
+      const output = service.format(makeResult());
+      expect(output.indexOf('bob ⚠️ AT RISK')).toBeLessThan(output.indexOf('### alice'));
+    });
+
+    it('omits Team Progress section when contributors is empty', () => {
+      const output = service.format(makeResult({ contributors: [] }));
+      expect(output).not.toContain('Team Progress');
     });
 
     it('does not include rawLLMResponse in the output', () => {
