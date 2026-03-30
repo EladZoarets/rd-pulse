@@ -10,7 +10,7 @@
 ### Services
 - [x] Task 4 — `GitHubService.ts` — fetch PRs, commits, comments via @octokit/rest with pagination
 - [x] Task 5 — `IntelligenceService.ts` — build LLM prompt, context window management, call OpenAI
-- [ ] Task 6 — `FormatterService.ts` — convert AnalysisResult to structured DAILY_PULSE.md
+- [x] Task 6 — `FormatterService.ts` — convert AnalysisResult to structured DAILY_PULSE.md
 
 ### Utilities
 - [ ] Task 7 — `logger.ts` — ASCII header, progress logs, fatal error handler
