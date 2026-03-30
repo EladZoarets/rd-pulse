@@ -1,5 +1,9 @@
+import * as path from 'path';
 import { IntelligenceService } from '../services/IntelligenceService';
 import { ActivityContext, AnalysisResult } from '../types';
+
+// Use the real prompt.md from the project root so tests exercise the actual prompt file.
+const PROMPT_PATH = path.resolve(__dirname, '../../prompt.md');
 
 // ── OpenAI mock ───────────────────────────────────────────────────────────────
 
@@ -82,7 +86,15 @@ describe('IntelligenceService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new IntelligenceService('sk-test-key');
+    service = new IntelligenceService('sk-test-key', 'gpt-4o', PROMPT_PATH);
+  });
+
+  describe('constructor', () => {
+    it('throws when the prompt file does not exist', () => {
+      expect(
+        () => new IntelligenceService('sk-test-key', 'gpt-4o', '/nonexistent/prompt.md')
+      ).toThrow(/System prompt file not found/);
+    });
   });
 
   describe('analyze()', () => {
@@ -104,7 +116,7 @@ describe('IntelligenceService', () => {
 
     it('uses the custom model passed to the constructor', async () => {
       mockCreate.mockResolvedValueOnce(makeLLMReply());
-      const customService = new IntelligenceService('sk-test-key', 'gpt-4-turbo');
+      const customService = new IntelligenceService('sk-test-key', 'gpt-4-turbo', PROMPT_PATH);
 
       await customService.analyze(makeContext());
 

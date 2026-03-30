@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import OpenAI from 'openai';
 import {
   ActivityContext,
@@ -14,36 +16,14 @@ const MAX_PROMPT_CHARS = 80_000;
 const PR_BUDGET_FRACTION = 0.7;
 const COMMIT_BUDGET_FRACTION = 0.9;
 
-const SYSTEM_PROMPT = `You are an expert engineering manager assistant. Analyse the provided GitHub activity and return a structured JSON report.
+const DEFAULT_PROMPT_PATH = path.resolve(process.cwd(), 'prompt.md');
 
-Return ONLY valid JSON matching this exact schema — no markdown fences, no extra keys:
-{
-  "contributors": [
-    {
-      "name": "string",
-      "prsMerged": 0,
-      "prsOpen": 0,
-      "commitsCount": 0,
-      "highlights": ["string"],
-      "risk": "string or null"
-    }
-  ],
-  "featureThemes": [{ "name": "string", "commits": ["string"], "summary": "string" }],
-  "keyAchievements": ["string"],
-  "workInProgress": ["string"],
-  "risksAndBlockers": ["string"],
-  "managersNote": "string"
+function loadSystemPrompt(promptPath: string = DEFAULT_PROMPT_PATH): string {
+  if (fs.existsSync(promptPath)) {
+    return fs.readFileSync(promptPath, 'utf8').trim();
+  }
+  throw new Error(`System prompt file not found: ${promptPath}. Create prompt.md in the project root.`);
 }
-
-Guidelines:
-- contributors: one entry per unique author who had any activity. Sort by impact (most active first).
-  - highlights: 1-3 bullet strings describing what they shipped or progressed (use PR titles/numbers)
-  - risk: null if healthy. Set to a short risk description if they have: stale open PRs, no merged work despite open PRs, direct commits to main, or unusually low activity compared to peers.
-- featureThemes: group related PRs/commits into themes with a concise summary
-- keyAchievements: merged PRs or notable completed work (max 8 bullet points)
-- workInProgress: open PRs or ongoing work (max 8 bullet points)
-- risksAndBlockers: stale PRs, heated discussions, direct-to-main commits (max 5 bullet points)
-- managersNote: 2-3 sentence high-level narrative for a non-technical engineering manager`;
 
 // ── Pure module-level helpers ─────────────────────────────────────────────────
 
@@ -95,9 +75,15 @@ function trimToBudget(list: string[], budget: number): { lines: string[]; chars:
 
 export class IntelligenceService {
   private client: OpenAI;
+  private systemPrompt: string;
 
-  constructor(private apiKey: string, private model: string = 'gpt-4o') {
+  constructor(
+    private apiKey: string,
+    private model: string = 'gpt-4o',
+    promptPath?: string
+  ) {
     this.client = new OpenAI({ apiKey });
+    this.systemPrompt = loadSystemPrompt(promptPath);
   }
 
   async analyze(context: ActivityContext): Promise<AnalysisResult> {
@@ -113,7 +99,7 @@ export class IntelligenceService {
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: this.systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.3,
