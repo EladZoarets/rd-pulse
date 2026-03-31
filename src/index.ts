@@ -5,6 +5,7 @@ import { AnalyzeOptions } from './types';
 import { GitHubService, DEFAULT_BIG_PR_THRESHOLDS } from './services/GitHubService';
 import { IntelligenceService } from './services/IntelligenceService';
 import { FormatterService } from './services/FormatterService';
+import { HtmlFormatterService } from './services/HtmlFormatterService';
 import { printHeader, log, handleFatalError } from './utils/logger';
 
 dotenv.config();
@@ -21,7 +22,8 @@ program
   .requiredOption('--owner <owner>', 'GitHub repository owner')
   .requiredOption('--repo <repo>', 'GitHub repository name')
   .option('--days <days>', 'Number of days to look back', '1')
-  .option('--output <path>', 'Output file path', 'DAILY_PULSE.md')
+  .option('--output <path>', 'Output file path (default: DAILY_PULSE.md or DAILY_PULSE.html)')
+  .option('--format <fmt>', 'Output format: md or html', 'md')
   .option('--model <model>', 'OpenAI model to use', 'gpt-4o')
   .option('--big-pr-files <n>', 'Flag PRs with this many changed files or more', String(DEFAULT_BIG_PR_THRESHOLDS.files))
   .option('--big-pr-lines <n>', 'Flag PRs with this many changed lines or more', String(DEFAULT_BIG_PR_THRESHOLDS.lines))
@@ -36,6 +38,13 @@ program
 
     const days = parseInt(String(opts.days), 10);
     if (isNaN(days) || days < 1) handleFatalError(new Error('--days must be a positive integer'), 'startup');
+
+    const fmt = String(opts.format).toLowerCase();
+    if (fmt !== 'md' && fmt !== 'html')
+      handleFatalError(new Error('--format must be "md" or "html"'), 'startup');
+
+    // Default output filename based on format if not explicitly provided
+    const outputPath = opts.output ?? (fmt === 'html' ? 'DAILY_PULSE.html' : 'DAILY_PULSE.md');
 
     try {
       const bigPRThresholds = {
@@ -53,16 +62,22 @@ program
       const result = await intelligence.analyze(context);
       log(`Analysis complete — ${result.featureThemes.length} themes, ${result.keyAchievements.length} achievements`);
 
-      log(`Formatting report…`);
-      const formatter = new FormatterService();
-      const markdown = formatter.format(result);
+      log(`Formatting report as ${fmt.toUpperCase()}…`);
+      const output =
+        fmt === 'html'
+          ? new HtmlFormatterService().format(result)
+          : new FormatterService().format(result);
 
-      fs.writeFileSync(opts.output, markdown, 'utf8');
-      log(`Report written to ${opts.output}`);
+      fs.writeFileSync(outputPath, output, 'utf8');
+      log(`Report written to ${outputPath}`);
 
-      console.log('\n' + '─'.repeat(60));
-      console.log(markdown);
-      console.log('─'.repeat(60) + '\n');
+      if (fmt === 'md') {
+        console.log('\n' + '─'.repeat(60));
+        console.log(output);
+        console.log('─'.repeat(60) + '\n');
+      } else {
+        log(`Open in browser: open ${outputPath}`);
+      }
     } catch (err) {
       handleFatalError(err, 'analyze');
     }

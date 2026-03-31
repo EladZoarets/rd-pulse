@@ -86,7 +86,8 @@ export interface AnalyzeOptions {
   owner: string;
   repo: string;
   days: number;
-  output: string;
+  output?: string;
+  format: string;
   model: string;
   bigPrFiles: number;
   bigPrLines: number;
