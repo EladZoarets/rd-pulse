@@ -14,6 +14,14 @@ export interface GitHubPR {
   isDraft: boolean;
   headRef: string;
   baseRef: string;
+  changedFiles: number;
+  additions: number;
+  deletions: number;
+}
+
+export interface BigPRThresholds {
+  files: number;   // flag PR if changedFiles >= this value
+  lines: number;   // flag PR if (additions + deletions) >= this value
 }
 
 export interface GitHubCommit {
@@ -42,6 +50,8 @@ export interface ActivityContext {
   stalePRs: GitHubPR[];
   heatedPRs: GitHubPR[];
   directCommits: GitHubCommit[];
+  bigPRs: GitHubPR[];
+  bigPRThresholds: BigPRThresholds;
 }
 
 export interface FeatureTheme {
@@ -67,6 +77,7 @@ export interface AnalysisResult {
   keyAchievements: string[];
   workInProgress: string[];
   risksAndBlockers: string[];
+  largePRs: string[];
   managersNote: string;
   rawLLMResponse: string;
 }
@@ -77,4 +88,6 @@ export interface AnalyzeOptions {
   days: number;
   output: string;
   model: string;
+  bigPrFiles: number;
+  bigPrLines: number;
 }

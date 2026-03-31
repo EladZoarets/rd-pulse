@@ -29,6 +29,7 @@ const makeResult = (overrides: Partial<AnalysisResult> = {}): AnalysisResult => 
   keyAchievements: ['Merged OAuth2 login PR', 'Deployed Stripe integration'],
   workInProgress: ['PR #42: rate limiting (in review)', 'PR #43: dark mode (draft)'],
   risksAndBlockers: ['PR #38 stale for 7 days', 'Direct push to main by bob'],
+  largePRs: [],
   managersNote: 'Strong week. Auth shipped and payments unblocked the mobile team.',
   rawLLMResponse: '{"featureThemes":[]}',
   ...overrides,

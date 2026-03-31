@@ -1,11 +1,18 @@
 import { Octokit } from '@octokit/rest';
-import { ActivityContext, GitHubPR, GitHubCommit, GitHubComment } from '../types';
+import { ActivityContext, BigPRThresholds, GitHubPR, GitHubCommit, GitHubComment } from '../types';
 
 const HEATED_COMMENT_THRESHOLD = 10;
 const STALE_HOURS = 24;
 const MAX_PRS_WITH_COMMENTS = 20;
 // BUG-07: Cap total commits fetched to avoid unbounded pagination on very active repos.
 const MAX_COMMITS = 500;
+// Cap individual PR detail fetches to avoid rate-limiting on very active repos.
+const MAX_PR_STAT_FETCHES = 50;
+
+export const DEFAULT_BIG_PR_THRESHOLDS: BigPRThresholds = {
+  files: 50,
+  lines: 500,
+};
 
 export class GitHubService {
   private octokit: Octokit;
@@ -14,7 +21,12 @@ export class GitHubService {
     this.octokit = new Octokit({ auth: token });
   }
 
-  async fetchActivity(owner: string, repo: string, days: number = 1): Promise<ActivityContext> {
+  async fetchActivity(
+    owner: string,
+    repo: string,
+    days: number = 1,
+    thresholds: BigPRThresholds = DEFAULT_BIG_PR_THRESHOLDS
+  ): Promise<ActivityContext> {
     const windowEnd = new Date();
     const windowStart = new Date(windowEnd.getTime() - days * 24 * 60 * 60 * 1000);
 
@@ -54,7 +66,15 @@ export class GitHubService {
       (pr: any) => this.normalizePR(pr, owner, repo, openPRNumbers)
     );
 
-    // 6. Derive signals
+    // 6. Fetch PR size stats (changed_files, additions, deletions) for recent PRs.
+    // The list API does not return these — requires individual pulls.get calls.
+    // Cap at MAX_PR_STAT_FETCHES to avoid rate-limiting on very active repos.
+    const prsToMeasure = pullRequests.slice(0, MAX_PR_STAT_FETCHES);
+    await this.batchAsync(prsToMeasure, 5, async (pr) => {
+      await this.enrichPRStats(pr, owner, repo);
+    });
+
+    // 7. Derive signals
     // BUG-09: staleThreshold is exactly STALE_HOURS before windowEnd, not windowStart.
     // A PR updated exactly at the threshold boundary (updatedAt === staleThreshold) is
     // NOT stale — use strict `<` so the boundary PR is excluded from stalePRs.
@@ -64,6 +84,11 @@ export class GitHubService {
     );
     const heatedPRs = pullRequests.filter(pr => pr.commentCount > HEATED_COMMENT_THRESHOLD);
     const directCommits = commits.filter(c => c.isDirectToMain);
+    const bigPRs = pullRequests.filter(
+      pr =>
+        pr.changedFiles >= thresholds.files ||
+        pr.additions + pr.deletions >= thresholds.lines
+    );
 
     return {
       owner,
@@ -76,6 +101,8 @@ export class GitHubService {
       stalePRs,
       heatedPRs,
       directCommits,
+      bigPRs,
+      bigPRThresholds: thresholds,
     };
   }
 
@@ -176,7 +203,23 @@ export class GitHubService {
       isDraft: pr.draft ?? false,
       headRef: pr.head?.ref ?? '',
       baseRef: pr.base?.ref ?? '',
+      // Size stats default to 0; enriched by enrichPRStats() after initial normalization.
+      changedFiles: 0,
+      additions: 0,
+      deletions: 0,
     };
+  }
+
+  /** Mutates `pr` in place with size stats from the individual PR endpoint. */
+  private async enrichPRStats(pr: GitHubPR, owner: string, repo: string): Promise<void> {
+    try {
+      const { data } = await this.octokit.pulls.get({ owner, repo, pull_number: pr.number });
+      pr.changedFiles = data.changed_files ?? 0;
+      pr.additions = data.additions ?? 0;
+      pr.deletions = data.deletions ?? 0;
+    } catch {
+      // Non-fatal — leave defaults at 0 if the individual fetch fails.
+    }
   }
 
   private normalizeCommit(c: any, mergeCommitShas: Set<string>): GitHubCommit {

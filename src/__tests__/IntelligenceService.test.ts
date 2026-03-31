@@ -48,6 +48,9 @@ const makeContext = (overrides: Partial<ActivityContext> = {}): ActivityContext 
       isDraft: false,
       headRef: 'feature/auth',
       baseRef: 'main',
+      changedFiles: 3,
+      additions: 50,
+      deletions: 10,
     },
   ],
   commits: [
@@ -63,6 +66,8 @@ const makeContext = (overrides: Partial<ActivityContext> = {}): ActivityContext 
   stalePRs: [],
   heatedPRs: [],
   directCommits: [],
+  bigPRs: [],
+  bigPRThresholds: { files: 50, lines: 500 },
   ...overrides,
 });
 
@@ -293,6 +298,9 @@ describe('IntelligenceService', () => {
         isDraft: false,
         headRef: `feature/${i}`,
         baseRef: 'main',
+        changedFiles: 0,
+        additions: 0,
+        deletions: 0,
       }));
 
       const ctx = makeContext({ pullRequests: largePRList });
@@ -347,6 +355,9 @@ describe('IntelligenceService', () => {
             isDraft: false,
             headRef: 'feat/auth',
             baseRef: 'main',
+            changedFiles: 0,
+            additions: 0,
+            deletions: 0,
           },
         ],
       });

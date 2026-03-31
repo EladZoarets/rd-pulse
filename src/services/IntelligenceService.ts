@@ -139,6 +139,7 @@ export class IntelligenceService {
       keyAchievements: toStringArray(parsed.keyAchievements),
       workInProgress: toStringArray(parsed.workInProgress),
       risksAndBlockers: toStringArray(parsed.risksAndBlockers),
+      largePRs: toStringArray(parsed.largePRs),
       managersNote: typeof parsed.managersNote === 'string' ? parsed.managersNote : '',
       rawLLMResponse: stripped,
     };
@@ -197,8 +198,9 @@ export class IntelligenceService {
   }
 
   private buildFlagSection(context: ActivityContext): string {
-    const { stalePRs, heatedPRs, directCommits, defaultBranch } = context;
-    if (!stalePRs.length && !heatedPRs.length && !directCommits.length) return '';
+    const { stalePRs, heatedPRs, directCommits, defaultBranch, bigPRs, bigPRThresholds } = context;
+    if (!stalePRs.length && !heatedPRs.length && !directCommits.length && !bigPRs.length)
+      return '';
 
     const lines: string[] = ['## Flags\n'];
     if (stalePRs.length)
@@ -215,6 +217,15 @@ export class IntelligenceService {
       lines.push(this.renderFlagSubsection(
         `Direct commits to ${defaultBranch} (${directCommits.length})`,
         directCommits.map((c: GitHubCommit) => `- [${shortSha(c.sha)}] ${c.message} (${c.author})`)
+      ));
+
+    if (bigPRs.length)
+      lines.push(this.renderFlagSubsection(
+        `Large PRs (>${bigPRThresholds.files} files or >${bigPRThresholds.lines} lines changed)`,
+        bigPRs.map(
+          (pr) =>
+            `- PR #${pr.number} by ${pr.author}: ${pr.title} — ${pr.changedFiles} files, +${pr.additions}/-${pr.deletions} lines`
+        )
       ));
 
     return lines.join('\n');

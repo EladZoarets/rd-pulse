@@ -86,6 +86,8 @@ export class FormatterService {
       sections.push(renderBulletList('Work in Progress', workInProgress));
     if (risksAndBlockers.filter((i) => i.trim()).length > 0)
       sections.push(renderBulletList('Risks & Blockers', risksAndBlockers));
+    if ((result.largePRs ?? []).filter((i) => i.trim()).length > 0)
+      sections.push(renderBulletList('Large PRs', result.largePRs));
 
     return sections.join('\n\n');
   }
