@@ -44,113 +44,116 @@ Strong week. Auth shipped and payments unblocked the mobile team...
 
 ---
 
-## Quick Start
+## Installation
 
-### 1. Clone and install
+### Prerequisites
+
+- **Node.js 18+** — check with `node --version`
+- **npm** — bundled with Node.js
+- A GitHub account with access to the repo you want to analyse
+- An OpenAI account with GPT-4o access (paid plan)
+
+### Steps
 
 ```bash
+# 1. Clone the repo
 git clone https://github.com/EladZoarets/rd-pulse.git
 cd rd-pulse
+
+# 2. Install dependencies
 npm install
 ```
 
-### 2. Get your API keys
+That's it. No global install, no build step — run directly with `npx ts-node`.
 
-You need two keys to run Stage 1.
+---
 
-#### GitHub Personal Access Token
+## Configuration
 
-1. Go to **GitHub → Settings → Developer Settings → Personal access tokens → Tokens (classic)**
-   - Direct link: https://github.com/settings/tokens
-2. Click **Generate new token (classic)**
-3. Give it a name (e.g. `rd-pulse`)
-4. Select scope: **`repo`** (read access to repositories)
-5. Click **Generate token** and copy it
+There are three layers of configuration. You only need to touch the first one to get started.
 
-#### OpenAI API Key
+### Layer 1 — API Keys (required)
 
-1. Go to **https://platform.openai.com/api-keys**
-2. Click **Create new secret key**
-3. Give it a name (e.g. `rd-pulse`) and copy it
-4. Make sure your account has **GPT-4o access** (requires a paid plan)
-   - If you're on the free tier (30k TPM limit), the default settings will work
-
-### 3. Configure
+Copy the example file and fill in your keys:
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and fill in your keys:
-
 ```env
+# .env
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxx
 ```
 
-### 4. Run
+**How to get your GitHub token:**
+1. Go to **GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)**
+2. Click **Generate new token (classic)**
+3. Name it `rd-pulse`, select the **`repo`** scope, click **Generate token**
+4. Copy the token — you won't see it again
 
-```bash
-npx ts-node src/index.ts analyze --owner <github-owner> --repo <repo-name>
-```
-
-Examples:
-
-```bash
-# Analyse the last 24 hours (Markdown, default)
-npx ts-node src/index.ts analyze --owner microsoft --repo vscode
-
-# HTML dashboard — open DAILY_PULSE.html in your browser
-npx ts-node src/index.ts analyze --owner your-org --repo your-repo --format html
-
-# Analyse the last 7 days
-npx ts-node src/index.ts analyze --owner your-org --repo your-repo --days 7
-
-# Write report to a custom file
-npx ts-node src/index.ts analyze --owner your-org --repo your-repo --output reports/monday.md
-
-# Use a different model
-npx ts-node src/index.ts analyze --owner your-org --repo your-repo --model gpt-4-turbo
-
-# Custom large-PR thresholds (flag PRs with ≥30 files or ≥300 changed lines)
-npx ts-node src/index.ts analyze --owner your-org --repo your-repo --big-pr-files 30 --big-pr-lines 300
-```
-
-Markdown reports print to the terminal and are saved to `DAILY_PULSE.md`. HTML reports are saved to `DAILY_PULSE.html` — open with `open DAILY_PULSE.html`.
+**How to get your OpenAI key:**
+1. Go to **https://platform.openai.com/api-keys**
+2. Click **Create new secret key**, name it `rd-pulse`, copy it
+3. Your account needs a paid plan for GPT-4o access
 
 ---
 
-## Customising the Prompt
+### Layer 2 — LLM Prompt (optional, no code changes needed)
 
-The LLM instructions live in `prompt.md` at the project root. Edit it freely — no code changes needed.
+The AI instructions live in `prompt.md` at the project root. Open and edit it freely:
 
 ```bash
-# open and edit the prompt
-open prompt.md
+open prompt.md   # macOS
+# or: code prompt.md / nano prompt.md
 ```
 
-Useful customisations:
-- Add your team's names so the LLM recognises contributors
-- Change the risk criteria (e.g. flag PRs stale for >3 days instead of 7)
-- Add a section specific to your process (e.g. "highlight any PRs missing a Jira ticket link")
-- Translate the output to another language
+What you can change:
+- **Risk criteria** — e.g. flag PRs stale for >3 days instead of 7
+- **Team context** — add your team members' names so the LLM recognises them
+- **Custom sections** — e.g. "highlight any PRs missing a Jira ticket link"
+- **Language** — translate the output to any language
 
-The schema block at the top of `prompt.md` must stay intact — it tells the LLM what JSON shape to return.
+> The JSON schema block at the top of `prompt.md` must stay intact — it defines what the LLM returns.
 
 ---
 
-## All CLI Options
+### Layer 3 — CLI Flags (optional, per-run)
 
-| Option | Default | Description |
-|--------|---------|-------------|
+Pass flags when you run the command to override defaults for that run:
+
+| Flag | Default | What it does |
+|------|---------|-------------|
 | `--owner` | *(required)* | GitHub organisation or username |
 | `--repo` | *(required)* | Repository name |
 | `--days` | `1` | How many days of history to fetch |
 | `--format` | `md` | Output format: `md` (Markdown) or `html` (dashboard) |
-| `--output` | `DAILY_PULSE.md` / `DAILY_PULSE.html` | Output file path (defaults based on format) |
+| `--output` | `DAILY_PULSE.md` / `DAILY_PULSE.html` | Output file path |
 | `--model` | `gpt-4o` | OpenAI model to use |
 | `--big-pr-files` | `50` | Flag PRs with this many changed files or more |
 | `--big-pr-lines` | `500` | Flag PRs with this many changed lines or more |
+
+---
+
+## Running
+
+```bash
+# Basic — last 24 hours, Markdown report
+npx ts-node src/index.ts analyze --owner your-org --repo your-repo
+
+# HTML dashboard
+npx ts-node src/index.ts analyze --owner your-org --repo your-repo --format html
+open DAILY_PULSE.html
+
+# Last 7 days
+npx ts-node src/index.ts analyze --owner your-org --repo your-repo --days 7
+
+# Save to a specific file
+npx ts-node src/index.ts analyze --owner your-org --repo your-repo --output reports/monday.md
+
+# Tighter large-PR threshold (flag PRs with ≥30 files or ≥300 lines)
+npx ts-node src/index.ts analyze --owner your-org --repo your-repo --big-pr-files 30 --big-pr-lines 300
+```
 
 ---
 
@@ -158,24 +161,24 @@ The schema block at the top of `prompt.md` must stay intact — it tells the LLM
 
 ```
 rd-pulse/
-├── prompt.md                     # ← Edit this to customise the LLM instructions
-├── .env                          # Your API keys (never committed)
-├── .env.example                  # Template for .env
-├── DAILY_PULSE.md                # Generated Markdown report (never committed)
-├── DAILY_PULSE.html              # Generated HTML report (never committed)
+├── prompt.md                       # ← Edit to customise the LLM instructions
+├── .env                            # Your API keys (gitignored — never committed)
+├── .env.example                    # Template — copy to .env and fill in keys
+├── DAILY_PULSE.md                  # Generated Markdown report (gitignored)
+├── DAILY_PULSE.html                # Generated HTML report (gitignored)
 └── src/
-    ├── index.ts                  # CLI entry point
-    ├── types.ts                  # Shared TypeScript interfaces
+    ├── index.ts                    # CLI entry point
+    ├── types.ts                    # Shared TypeScript interfaces
     ├── services/
-    │   ├── GitHubService.ts      # Fetches PRs, commits, comments via Octokit
-    │   ├── IntelligenceService.ts # Builds prompt, calls OpenAI, parses response
-    │   ├── FormatterService.ts   # Renders AnalysisResult → Markdown
+    │   ├── GitHubService.ts        # Fetches PRs, commits, comments via Octokit
+    │   ├── IntelligenceService.ts  # Builds prompt, calls OpenAI, parses response
+    │   ├── FormatterService.ts     # Renders AnalysisResult → Markdown
     │   ├── HtmlFormatterService.ts # Renders AnalysisResult → self-contained HTML dashboard
-    │   ├── SlackService.ts       # Stage 2 — Slack messages and threads
-    │   └── JiraService.ts        # Stage 2 — Jira ticket activity
+    │   ├── SlackService.ts         # Stage 2 — Slack messages and threads
+    │   └── JiraService.ts          # Stage 2 — Jira ticket activity
     └── utils/
-        ├── logger.ts             # ASCII header, progress logs, fatal error handler
-        └── tokenCounter.ts       # Token budget utilities
+        ├── logger.ts               # ASCII header, progress logs, fatal error handler
+        └── tokenCounter.ts         # Token budget utilities
 ```
 
 ---
@@ -203,7 +206,7 @@ rd-pulse/
 
 ## Troubleshooting
 
-**`401 Incorrect API key`** — Your `OPENAI_API_KEY` in `.env` is wrong or still the placeholder. Double-check it at https://platform.openai.com/api-keys.
+**`401 Incorrect API key`** — Your `OPENAI_API_KEY` in `.env` is wrong or still the placeholder. Check it at https://platform.openai.com/api-keys.
 
 **`429 Request too large`** — Your OpenAI tier has a low TPM limit. The tool automatically trims the prompt, but very active repos on free-tier accounts may still hit limits. Try `--days 1` (the default) or upgrade your OpenAI plan.
 
