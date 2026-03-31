@@ -130,10 +130,10 @@ describe('HtmlFormatterService', () => {
       expect(output).toContain('PR #99 by alice');
     });
 
-    it('omits empty sections', () => {
+    it('shows empty state when there are no risks', () => {
       const output = service.format(makeResult({ largePRs: [], risksAndBlockers: [] }));
-      expect(output).not.toContain('Large PRs');
-      expect(output).not.toContain('Risks');
+      expect(output).toContain('Critical Risks');
+      expect(output).toContain('No critical risks detected');
     });
 
     it('does not include rawLLMResponse', () => {
@@ -151,9 +151,80 @@ describe('HtmlFormatterService', () => {
       expect(output).not.toContain('<95%');
     });
 
+    it('neutralises <script> injection in managersNote', () => {
+      const output = service.format(
+        makeResult({ managersNote: '<script>alert(1)</script>' })
+      );
+      expect(output).not.toContain('<script>');
+      expect(output).toContain('&lt;script&gt;');
+    });
+
+    it('escapes backtick characters in LLM content', () => {
+      const output = service.format(
+        makeResult({ managersNote: 'value: `dangerous`' })
+      );
+      expect(output).toContain('&#96;dangerous&#96;');
+      expect(output).not.toContain('`dangerous`');
+    });
+
     it('is a pure function — same input produces same output', () => {
       const result = makeResult();
       expect(service.format(result)).toBe(service.format(result));
+    });
+
+    it('does not mutate the input AnalysisResult', () => {
+      const result = makeResult();
+      const originalContributorsLength = result.contributors.length;
+      const originalRisks = [...result.risksAndBlockers];
+      service.format(result);
+      expect(result.contributors.length).toBe(originalContributorsLength);
+      expect(result.risksAndBlockers).toEqual(originalRisks);
+    });
+
+    it('does not throw on an invalid Date for generatedAt', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = makeResult({ generatedAt: new Date('invalid') as any });
+      expect(() => service.format(result)).not.toThrow();
+      expect(service.format(result)).toContain('unknown date');
+    });
+
+    it('treats empty-string risk as healthy (not AT RISK)', () => {
+      const result = makeResult({
+        contributors: [makeContributor({ risk: '' })],
+      });
+      const output = service.format(result);
+      expect(output).not.toContain('AT RISK');
+    });
+
+    it('does not throw when featureTheme.commits is null at runtime', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = makeResult({ featureThemes: [{ name: 'Auth', commits: null as any, summary: 'ok' }] });
+      expect(() => service.format(result)).not.toThrow();
+    });
+
+    it('does not throw when managersNote is null at runtime', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = makeResult({ managersNote: null as any });
+      expect(() => service.format(result)).not.toThrow();
+    });
+
+    it('does not throw when contributor name is null at runtime', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = makeResult({ contributors: [makeContributor({ name: null as any })] });
+      expect(() => service.format(result)).not.toThrow();
+    });
+
+    it('shows 0 for PRs Merged stat when prsMerged is undefined at runtime', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = makeResult({ contributors: [makeContributor({ prsMerged: undefined as any })] });
+      const output = service.format(result);
+      expect(output).not.toContain('NaN');
+    });
+
+    it('shows empty state for whitespace-only risk items', () => {
+      const result = makeResult({ risksAndBlockers: ['   ', '  '], largePRs: [] });
+      const output = service.format(result);
+      expect(output).toContain('No critical risks detected');
     });
   });
 });
