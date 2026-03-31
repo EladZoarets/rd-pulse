@@ -8,9 +8,13 @@ Instead of context-switching between GitHub, Slack, and Jira, you get one struct
 
 ## What You Get
 
+Two output formats, one command.
+
+**Markdown** (`--format md`, default) — prints to the terminal and saves to `DAILY_PULSE.md`:
+
 ```
 # Daily Pulse — acme/backend
-_Generated: 2026-03-31T09:00:00.000Z_
+_Generated: 2026-03-31_
 
 ## Manager's Note
 Strong week. Auth shipped and payments unblocked the mobile team...
@@ -26,12 +30,17 @@ Strong week. Auth shipped and payments unblocked the mobile team...
 - Merged PR #42: feat: OAuth2 login
 - Merged PR #43: fix: refresh token expiry
 
-## Feature Themes
-...
-
-## Key Achievements / Work in Progress / Risks & Blockers
+## Feature Themes / Key Achievements / Work in Progress / Risks & Blockers
 ...
 ```
+
+**HTML** (`--format html`) — saves a self-contained `DAILY_PULSE.html` you can open in any browser:
+
+- Two-column dashboard with stat cards (Critical Risks · Active Contributors · PRs Merged)
+- Activity feed (achievements, feature themes, WIP, large PRs)
+- Critical Risks sidebar with ⚠️ items
+- Team Pulse sidebar with per-contributor cards and AT RISK badges
+- No external dependencies — one file, works offline
 
 ---
 
@@ -88,8 +97,11 @@ npx ts-node src/index.ts analyze --owner <github-owner> --repo <repo-name>
 Examples:
 
 ```bash
-# Analyse the last 24 hours
+# Analyse the last 24 hours (Markdown, default)
 npx ts-node src/index.ts analyze --owner microsoft --repo vscode
+
+# HTML dashboard — open DAILY_PULSE.html in your browser
+npx ts-node src/index.ts analyze --owner your-org --repo your-repo --format html
 
 # Analyse the last 7 days
 npx ts-node src/index.ts analyze --owner your-org --repo your-repo --days 7
@@ -99,9 +111,12 @@ npx ts-node src/index.ts analyze --owner your-org --repo your-repo --output repo
 
 # Use a different model
 npx ts-node src/index.ts analyze --owner your-org --repo your-repo --model gpt-4-turbo
+
+# Custom large-PR thresholds (flag PRs with ≥30 files or ≥300 changed lines)
+npx ts-node src/index.ts analyze --owner your-org --repo your-repo --big-pr-files 30 --big-pr-lines 300
 ```
 
-The report prints to the terminal and is saved to `DAILY_PULSE.md` (or `--output` path).
+Markdown reports print to the terminal and are saved to `DAILY_PULSE.md`. HTML reports are saved to `DAILY_PULSE.html` — open with `open DAILY_PULSE.html`.
 
 ---
 
@@ -131,8 +146,11 @@ The schema block at the top of `prompt.md` must stay intact — it tells the LLM
 | `--owner` | *(required)* | GitHub organisation or username |
 | `--repo` | *(required)* | Repository name |
 | `--days` | `1` | How many days of history to fetch |
-| `--output` | `DAILY_PULSE.md` | Output file path |
+| `--format` | `md` | Output format: `md` (Markdown) or `html` (dashboard) |
+| `--output` | `DAILY_PULSE.md` / `DAILY_PULSE.html` | Output file path (defaults based on format) |
 | `--model` | `gpt-4o` | OpenAI model to use |
+| `--big-pr-files` | `50` | Flag PRs with this many changed files or more |
+| `--big-pr-lines` | `500` | Flag PRs with this many changed lines or more |
 
 ---
 
@@ -143,7 +161,8 @@ rd-pulse/
 ├── prompt.md                     # ← Edit this to customise the LLM instructions
 ├── .env                          # Your API keys (never committed)
 ├── .env.example                  # Template for .env
-├── DAILY_PULSE.md                # Generated report (never committed)
+├── DAILY_PULSE.md                # Generated Markdown report (never committed)
+├── DAILY_PULSE.html              # Generated HTML report (never committed)
 └── src/
     ├── index.ts                  # CLI entry point
     ├── types.ts                  # Shared TypeScript interfaces
@@ -151,6 +170,7 @@ rd-pulse/
     │   ├── GitHubService.ts      # Fetches PRs, commits, comments via Octokit
     │   ├── IntelligenceService.ts # Builds prompt, calls OpenAI, parses response
     │   ├── FormatterService.ts   # Renders AnalysisResult → Markdown
+    │   ├── HtmlFormatterService.ts # Renders AnalysisResult → self-contained HTML dashboard
     │   ├── SlackService.ts       # Stage 2 — Slack messages and threads
     │   └── JiraService.ts        # Stage 2 — Jira ticket activity
     └── utils/
@@ -167,7 +187,9 @@ rd-pulse/
 - [x] GitHubService — fetch PRs, commits, comments (pagination + rate limit handling)
 - [x] IntelligenceService — LLM analysis with context window management
 - [x] FormatterService — structured Markdown with per-contributor progress and risk flags
-- [x] CLI — `analyze` command with full error handling
+- [x] HtmlFormatterService — self-contained HTML dashboard (two-column grid, stat cards, AT RISK badges)
+- [x] Large PR detection — configurable file and line thresholds (`--big-pr-files`, `--big-pr-lines`)
+- [x] CLI — `analyze` command with `--format md|html` and full error handling
 
 ### Stage 2 — Full Daily Email Digest *(planned)*
 - [ ] SlackService — fetch messages and threads from relevant channels
