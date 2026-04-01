@@ -16,11 +16,14 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "testMatch": ["**/__tests__/**/*.test.ts"],
+    "testMatch": [
+      "**/__tests__/**/*.test.ts"
+    ],
     "clearMocks": true
   },
   "dependencies": {
     "@octokit/rest": "^21.0.2",
+    "axios": "^1.14.0",
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",
     "openai": "^4.67.0"
