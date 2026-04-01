@@ -31,7 +31,7 @@
 - [x] Task 12 — Extend `types.ts` with Jira + Unified types (`JiraIssue`, `JiraSprintContext`, `JiraFetchOptions`, `UnifiedActivity`, `UnifiedReport`, `TopicBreakdown`, `RiskItem`, `PersonalPulse`). Move existing Jira types out of `JiraService.ts`.
 
 ### JiraService
-- [ ] Task 13 — `JiraService.test.ts` (red phase) — mock axios; cover `fetchSprintContext`: active sprint, status bucket mapping, empty sprint, 401 error, missing active sprint, custom fields, story points field, default fields fallback
+- [x] Task 13 — `JiraService.test.ts` (red phase) — mock axios; cover `fetchSprintContext`: active sprint, status bucket mapping, empty sprint, 401 error, missing active sprint, custom fields, story points field, default fields fallback
 - [ ] Task 14 — Implement `JiraService.fetchSprintContext(boardId, options?)` — axios + Basic Auth, Jira Agile REST v1, map `statusCategory.key` → `TO_DO / IN_PROGRESS / DONE`, optional `storyPointsField`, `fields` override
 
 ### Ghost Work Detection
