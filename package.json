@@ -16,16 +16,20 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "testMatch": ["**/__tests__/**/*.test.ts"],
+    "testMatch": [
+      "**/__tests__/**/*.test.ts"
+    ],
     "clearMocks": true
   },
   "dependencies": {
     "@octokit/rest": "^21.0.2",
+    "axios": "^1.14.0",
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",
     "openai": "^4.67.0"
   },
   "devDependencies": {
+    "@types/axios": "^0.9.36",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.16.0",
     "jest": "^30.3.0",
