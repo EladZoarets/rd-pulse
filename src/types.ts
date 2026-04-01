@@ -92,3 +92,101 @@ export interface AnalyzeOptions {
   bigPrFiles: number;
   bigPrLines: number;
 }
+
+// ── Jira types ────────────────────────────────────────────────────────────────
+
+export type JiraIssueStatus = 'TO_DO' | 'IN_PROGRESS' | 'DONE';
+
+export type RiskType = 'GHOST_WORK' | 'SPRINT_JEOPARDY' | 'OVERLOAD' | 'STALL' | 'UNASSIGNED';
+
+export interface JiraIssue {
+  key: string;
+  summary: string;
+  status: JiraIssueStatus;
+  issueType: string;
+  assignee: string | null;
+  storyPoints: number | null;
+  labels: string[];
+  epicKey: string | null;
+  epicName: string | null;
+}
+
+export interface JiraSprintContext {
+  boardId: string;
+  sprintId: number;
+  sprintName: string;
+  sprintEndDate: string | null;
+  todoIssues: JiraIssue[];
+  inProgressIssues: JiraIssue[];
+  doneIssues: JiraIssue[];
+}
+
+export const DEFAULT_JIRA_FIELDS: string[] = [
+  'summary',
+  'status',
+  'assignee',
+  'issuetype',
+  'labels',
+  'epic',
+  'parent',
+];
+
+export interface JiraFetchOptions {
+  issueTypes?: string[];
+  fields?: string[];
+  storyPointsField?: string;
+}
+
+// ── Unified types ─────────────────────────────────────────────────────────────
+
+export interface UnifiedActivity {
+  github: ActivityContext;
+  jira: JiraSprintContext;
+}
+
+export interface TopicBreakdown {
+  topic: string;
+  totalIssues: number;
+  doneCount: number;
+  inProgressCount: number;
+  todoCount: number;
+  completionPercent: number;
+}
+
+export interface RiskItem {
+  type: RiskType;
+  description: string;
+  severity: 'high' | 'medium' | 'low';
+}
+
+export interface PersonalPulse {
+  user: string;
+  done: number;
+  inProgress: number;
+  inReview: number;
+  unassignedCount: number;
+}
+
+export interface UnifiedReport {
+  repo: string;
+  boardId: string;
+  generatedAt: Date;
+  summary: string;
+  topicBreakdown: TopicBreakdown[];
+  risks: RiskItem[];
+  personalPulse: PersonalPulse[];
+  managersNote: string;
+  rawLLMResponse: string;
+}
+
+export interface PulseOptions {
+  owner: string;
+  repo: string;
+  board: string;
+  days: number;
+  output?: string;
+  format: string;
+  model: string;
+  jiraFields?: string;
+  jiraSpField?: string;
+}
