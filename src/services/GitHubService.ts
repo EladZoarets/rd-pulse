@@ -2,6 +2,7 @@ import { Octokit } from '@octokit/rest';
 import { ActivityContext, BigPRThresholds, GitHubPR, GitHubCommit, GitHubComment } from '../types';
 
 const HEATED_COMMENT_THRESHOLD = 10;
+const JIRA_KEY_PATTERN = /[A-Z]+-\d+/;
 const STALE_HOURS = 24;
 const MAX_PRS_WITH_COMMENTS = 20;
 // BUG-07: Cap total commits fetched to avoid unbounded pagination on very active repos.
@@ -89,6 +90,12 @@ export class GitHubService {
         pr.changedFiles >= thresholds.files ||
         pr.additions + pr.deletions >= thresholds.lines
     );
+    const ghostWorkPRs = pullRequests.filter(
+      pr =>
+        pr.state === 'open' &&
+        !JIRA_KEY_PATTERN.test(pr.headRef) &&
+        !JIRA_KEY_PATTERN.test(pr.title)
+    );
 
     return {
       owner,
@@ -103,6 +110,7 @@ export class GitHubService {
       directCommits,
       bigPRs,
       bigPRThresholds: thresholds,
+      ghostWorkPRs,
     };
   }
 

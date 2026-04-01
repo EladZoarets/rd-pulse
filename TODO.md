@@ -35,7 +35,7 @@
 - [x] Task 14 — Implement `JiraService.fetchSprintContext(boardId, options?)` — axios + Basic Auth, Jira Agile REST v1, map `statusCategory.key` → `TO_DO / IN_PROGRESS / DONE`, optional `storyPointsField`, `fields` override
 
 ### Ghost Work Detection
-- [ ] Task 15 — Add `ghostWorkPRs: GitHubPR[]` to `ActivityContext` in `types.ts`; flag PRs in `GitHubService` where branch name AND title contain no `[A-Z]+-\d+` pattern; add unit tests
+- [x] Task 15 — Add `ghostWorkPRs: GitHubPR[]` to `ActivityContext` in `types.ts`; flag PRs in `GitHubService` where branch name AND title contain no `[A-Z]+-\d+` pattern; add unit tests
 
 ### IntelligenceService
 - [ ] Task 16 — `IntelligenceService.test.ts` additions (red phase) — `analyzeUnified()`: valid `UnifiedReport`, pre-labeled Ghost Work PRs, token-trimmed path, empty LLM response, malformed JSON
