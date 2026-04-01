@@ -68,6 +68,7 @@ const makeContext = (overrides: Partial<ActivityContext> = {}): ActivityContext 
   directCommits: [],
   bigPRs: [],
   bigPRThresholds: { files: 50, lines: 500 },
+  ghostWorkPRs: [],
   ...overrides,
 });
 
