@@ -249,6 +249,43 @@ describe('JiraService.fetchSprintContext', () => {
     });
   });
 
+  describe('unknown or missing statusCategory', () => {
+    it('buckets issues with unknown statusCategory.key into TO_DO', async () => {
+      mockGet
+        .mockResolvedValueOnce(makeSprintResponse())
+        .mockResolvedValueOnce(
+          makeIssuesResponse([
+            makeIssue({ key: 'PROJ-9', statusCategoryKey: 'custom_unknown' }),
+          ])
+        );
+
+      const result = await service.fetchSprintContext(BOARD_ID);
+      expect(result.todoIssues).toHaveLength(1);
+      expect(result.todoIssues[0].key).toBe('PROJ-9');
+      expect(result.inProgressIssues).toHaveLength(0);
+      expect(result.doneIssues).toHaveLength(0);
+    });
+  });
+
+  describe('pagination', () => {
+    it('fetches all pages when Jira paginates the issues response', async () => {
+      const page1Issues = Array.from({ length: 50 }, (_, i) =>
+        makeIssue({ key: `PROJ-${i + 1}`, statusCategoryKey: 'new' })
+      );
+      const page2Issues = Array.from({ length: 25 }, (_, i) =>
+        makeIssue({ key: `PROJ-${i + 51}`, statusCategoryKey: 'new' })
+      );
+
+      mockGet
+        .mockResolvedValueOnce(makeSprintResponse())
+        .mockResolvedValueOnce({ data: { issues: page1Issues, total: 75, maxResults: 50, startAt: 0 } })
+        .mockResolvedValueOnce({ data: { issues: page2Issues, total: 75, maxResults: 50, startAt: 50 } });
+
+      const result = await service.fetchSprintContext(BOARD_ID);
+      expect(result.todoIssues).toHaveLength(75);
+    });
+  });
+
   describe('issueTypes filter', () => {
     it('passes issueTypes as JQL filter when provided', async () => {
       mockGet

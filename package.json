@@ -29,7 +29,6 @@
     "openai": "^4.67.0"
   },
   "devDependencies": {
-    "@types/axios": "^0.9.36",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.16.0",
     "jest": "^30.3.0",
