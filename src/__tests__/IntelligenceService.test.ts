@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { IntelligenceService } from '../services/IntelligenceService';
-import { ActivityContext, AnalysisResult } from '../types';
+import { ActivityContext, AnalysisResult, JiraSprintContext, UnifiedActivity } from '../types';
 
 // Use the real prompt.md from the project root so tests exercise the actual prompt file.
 const PROMPT_PATH = path.resolve(__dirname, '../../prompt.md');
@@ -338,6 +338,37 @@ describe('IntelligenceService', () => {
       expect(userMsg.content).toContain('unknown');
     });
 
+    it('includes ghost work PRs labeled in the prompt', async () => {
+      mockCreate.mockResolvedValueOnce(makeLLMReply());
+      const ghostPR = {
+        number: 99,
+        title: 'update stuff',
+        state: 'open' as const,
+        author: 'alice',
+        createdAt: YESTERDAY,
+        updatedAt: NOW,
+        mergedAt: null,
+        body: null,
+        commentCount: 0,
+        comments: [],
+        isDraft: false,
+        headRef: 'update-stuff',
+        baseRef: 'main',
+        changedFiles: 2,
+        additions: 10,
+        deletions: 5,
+      };
+      const ctx = makeContext({ ghostWorkPRs: [ghostPR] });
+
+      await service.analyze(ctx);
+
+      const userMsg = mockCreate.mock.calls[0][0].messages.find(
+        (m: { role: string }) => m.role === 'user'
+      );
+      expect(userMsg.content).toContain('Ghost Work');
+      expect(userMsg.content).toContain('#99');
+    });
+
     it('skips empty comment bodies in the PR section', async () => {
       mockCreate.mockResolvedValueOnce(makeLLMReply());
       const ctx = makeContext({
@@ -370,6 +401,210 @@ describe('IntelligenceService', () => {
       );
       // Empty comment body should not produce a bullet line
       expect(userMsg.content).not.toContain('  - bot:');
+    });
+  });
+
+  // ── analyzeUnified() ─────────────────────────────────────────────────────────
+
+  describe('analyzeUnified()', () => {
+    const makeJiraSprint = (overrides: Partial<JiraSprintContext> = {}): JiraSprintContext => ({
+      boardId: '42',
+      sprintId: 7,
+      sprintName: 'Sprint 7',
+      sprintEndDate: '2024-06-21',
+      todoIssues: [
+        { key: 'ENG-1', summary: 'Setup DB', status: 'TO_DO', issueType: 'Task', assignee: 'alice', storyPoints: 3, labels: [], epicKey: null, epicName: null },
+      ],
+      inProgressIssues: [
+        { key: 'ENG-2', summary: 'Auth service', status: 'IN_PROGRESS', issueType: 'Story', assignee: 'bob', storyPoints: 5, labels: [], epicKey: 'ENG-E1', epicName: 'Auth Epic' },
+      ],
+      doneIssues: [
+        { key: 'ENG-3', summary: 'CI pipeline', status: 'DONE', issueType: 'Task', assignee: 'carol', storyPoints: 2, labels: [], epicKey: null, epicName: null },
+      ],
+      ...overrides,
+    });
+
+    const makeUnifiedActivity = (overrides: Partial<UnifiedActivity> = {}): UnifiedActivity => ({
+      github: makeContext(),
+      jira: makeJiraSprint(),
+      ...overrides,
+    });
+
+    const validUnifiedLLMPayload = {
+      summary: 'Sprint is on track with auth work progressing well.',
+      topicBreakdown: [
+        { topic: 'Auth', totalIssues: 2, doneCount: 1, inProgressCount: 1, todoCount: 0, completionPercent: 50 },
+      ],
+      risks: [
+        { type: 'SPRINT_JEOPARDY', description: 'ENG-1 not started', severity: 'medium' },
+      ],
+      personalPulse: [
+        { user: 'alice', done: 0, inProgress: 0, inReview: 1, unassignedCount: 0 },
+      ],
+      managersNote: 'Auth is looking good.',
+    };
+
+    const makeUnifiedLLMReply = (payload = validUnifiedLLMPayload) => ({
+      choices: [{ message: { content: JSON.stringify(payload) } }],
+      usage: { prompt_tokens: 200, completion_tokens: 80, total_tokens: 280 },
+    });
+
+    it('returns a correctly shaped UnifiedReport', async () => {
+      mockCreate.mockResolvedValueOnce(makeUnifiedLLMReply());
+
+      const result = await service.analyzeUnified(makeUnifiedActivity());
+
+      expect(result.repo).toBe('acme/backend');
+      expect(result.boardId).toBe('42');
+      expect(result.generatedAt).toBeInstanceOf(Date);
+      expect(typeof result.summary).toBe('string');
+      expect(Array.isArray(result.topicBreakdown)).toBe(true);
+      expect(Array.isArray(result.risks)).toBe(true);
+      expect(Array.isArray(result.personalPulse)).toBe(true);
+      expect(typeof result.managersNote).toBe('string');
+      expect(typeof result.rawLLMResponse).toBe('string');
+    });
+
+    it('pre-labels ghost work PRs in the unified prompt', async () => {
+      mockCreate.mockResolvedValueOnce(makeUnifiedLLMReply());
+      const ghostPR = {
+        number: 55,
+        title: 'random cleanup',
+        state: 'open' as const,
+        author: 'dev',
+        createdAt: YESTERDAY,
+        updatedAt: NOW,
+        mergedAt: null,
+        body: null,
+        commentCount: 0,
+        comments: [],
+        isDraft: false,
+        headRef: 'random-cleanup',
+        baseRef: 'main',
+        changedFiles: 1,
+        additions: 5,
+        deletions: 0,
+      };
+      const activity = makeUnifiedActivity({
+        github: makeContext({ ghostWorkPRs: [ghostPR] }),
+      });
+
+      await service.analyzeUnified(activity);
+
+      const userMsg = mockCreate.mock.calls[0][0].messages.find(
+        (m: { role: string }) => m.role === 'user'
+      );
+      expect(userMsg.content).toContain('Ghost Work');
+      expect(userMsg.content).toContain('#55');
+    });
+
+    it('includes Jira sprint info in the unified prompt', async () => {
+      mockCreate.mockResolvedValueOnce(makeUnifiedLLMReply());
+
+      await service.analyzeUnified(makeUnifiedActivity());
+
+      const userMsg = mockCreate.mock.calls[0][0].messages.find(
+        (m: { role: string }) => m.role === 'user'
+      );
+      expect(userMsg.content).toContain('Sprint 7');
+      expect(userMsg.content).toContain('ENG-2');
+    });
+
+    it('stays within token budget when payload is very large', async () => {
+      mockCreate.mockResolvedValueOnce(makeUnifiedLLMReply());
+
+      const largePRList = Array.from({ length: 600 }, (_, i) => ({
+        number: i + 1,
+        title: `feat: feature ${i}`,
+        state: 'open' as const,
+        author: 'dev',
+        createdAt: YESTERDAY,
+        updatedAt: NOW,
+        mergedAt: null,
+        body: 'B'.repeat(600),
+        commentCount: 0,
+        comments: [],
+        isDraft: false,
+        headRef: `feat/feature-${i}`,
+        baseRef: 'main',
+        changedFiles: 1,
+        additions: 10,
+        deletions: 0,
+      }));
+
+      const largeJira = makeJiraSprint({
+        todoIssues: Array.from({ length: 200 }, (_, i) => ({
+          key: `ENG-${i + 100}`,
+          summary: 'C'.repeat(200),
+          status: 'TO_DO' as const,
+          issueType: 'Task',
+          assignee: null,
+          storyPoints: null,
+          labels: [],
+          epicKey: null,
+          epicName: null,
+        })),
+      });
+
+      const activity = makeUnifiedActivity({
+        github: makeContext({ pullRequests: largePRList }),
+        jira: largeJira,
+      });
+
+      await service.analyzeUnified(activity);
+
+      const userMsg = mockCreate.mock.calls[0][0].messages.find(
+        (m: { role: string }) => m.role === 'user'
+      );
+      expect(userMsg.content.length).toBeLessThanOrEqual(320_000);
+    });
+
+    it('throws a human-readable error when LLM returns empty content', async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '' } }],
+        usage: { prompt_tokens: 10, completion_tokens: 0, total_tokens: 10 },
+      });
+
+      await expect(service.analyzeUnified(makeUnifiedActivity())).rejects.toThrow(
+        /OpenAI analysis failed/
+      );
+    });
+
+    it('throws a human-readable error when LLM returns malformed JSON', async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'not valid json }{' } }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      });
+
+      await expect(service.analyzeUnified(makeUnifiedActivity())).rejects.toThrow(
+        /OpenAI analysis failed/
+      );
+    });
+
+    it('falls back gracefully when LLM returns wrong types for array fields', async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                summary: 'ok',
+                topicBreakdown: 'not an array',
+                risks: null,
+                personalPulse: 42,
+                managersNote: 'Fine.',
+              }),
+            },
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      });
+
+      const result = await service.analyzeUnified(makeUnifiedActivity());
+
+      expect(result.topicBreakdown).toEqual([]);
+      expect(result.risks).toEqual([]);
+      expect(result.personalPulse).toEqual([]);
+      expect(result.managersNote).toBe('Fine.');
     });
   });
 });
