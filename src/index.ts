@@ -1,8 +1,9 @@
 import { Command } from 'commander';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
-import { AnalyzeOptions } from './types';
+import { AnalyzeOptions, JiraFetchOptions, PulseOptions } from './types';
 import { GitHubService, DEFAULT_BIG_PR_THRESHOLDS } from './services/GitHubService';
+import { JiraService } from './services/JiraService';
 import { IntelligenceService } from './services/IntelligenceService';
 import { FormatterService } from './services/FormatterService';
 import { HtmlFormatterService } from './services/HtmlFormatterService';
@@ -83,4 +84,86 @@ program
     }
   });
 
-program.parse(process.argv);
+// ── pulse command ─────────────────────────────────────────────────────────────
+
+export async function runPulse(opts: PulseOptions, env: NodeJS.ProcessEnv): Promise<void> {
+  printHeader();
+
+  const githubToken = env.GITHUB_TOKEN;
+  const openaiKey = env.OPENAI_API_KEY;
+  const jiraDomain = env.JIRA_DOMAIN;
+  const jiraEmail = env.JIRA_EMAIL;
+  const jiraToken = env.JIRA_TOKEN;
+
+  if (!githubToken) handleFatalError(new Error('GITHUB_TOKEN is not set'), 'startup');
+  if (!openaiKey) handleFatalError(new Error('OPENAI_API_KEY is not set'), 'startup');
+  if (!jiraDomain) handleFatalError(new Error('JIRA_DOMAIN is not set'), 'startup');
+  if (!jiraEmail) handleFatalError(new Error('JIRA_EMAIL is not set'), 'startup');
+  if (!jiraToken) handleFatalError(new Error('JIRA_TOKEN is not set'), 'startup');
+
+  const days = parseInt(String(opts.days), 10);
+  if (isNaN(days) || days < 1) handleFatalError(new Error('--days must be a positive integer'), 'startup');
+
+  const fmt = String(opts.format).toLowerCase();
+  if (fmt !== 'md' && fmt !== 'html')
+    handleFatalError(new Error('--format must be "md" or "html"'), 'startup');
+
+  const outputPath = opts.output ?? (fmt === 'html' ? 'PULSE_REPORT.html' : 'PULSE_REPORT.md');
+
+  const jiraOptions: JiraFetchOptions = {};
+  if (opts.jiraFields) jiraOptions.fields = opts.jiraFields.split(',').map((f) => f.trim());
+  if (opts.jiraSpField) jiraOptions.storyPointsField = opts.jiraSpField;
+
+  try {
+    log(`Fetching ${days}d of GitHub activity for ${opts.owner}/${opts.repo}…`);
+    const github = new GitHubService(githubToken!);
+    const githubCtx = await github.fetchActivity(opts.owner, opts.repo, days, DEFAULT_BIG_PR_THRESHOLDS);
+    log(`Fetched ${githubCtx.pullRequests.length} PRs, ${githubCtx.commits.length} commits, ${githubCtx.ghostWorkPRs.length} ghost work PRs`);
+
+    log(`Fetching Jira sprint context for board ${opts.board}…`);
+    const jira = new JiraService(jiraDomain!, jiraEmail!, jiraToken!);
+    const jiraCtx = await jira.fetchSprintContext(opts.board, jiraOptions);
+    log(`Fetched sprint: ${jiraCtx.sprintName}`);
+
+    log(`Analysing with ${opts.model}…`);
+    const intelligence = new IntelligenceService(openaiKey!, opts.model);
+    const report = await intelligence.analyzeUnified({ github: githubCtx, jira: jiraCtx });
+    log(`Analysis complete — ${report.risks.length} risks, ${report.topicBreakdown.length} topics`);
+
+    log(`Formatting report as ${fmt.toUpperCase()}…`);
+    const output =
+      fmt === 'html'
+        ? new HtmlFormatterService().formatUnified(report)
+        : new FormatterService().formatUnified(report);
+
+    fs.writeFileSync(outputPath, output, 'utf8');
+    log(`Report written to ${outputPath}`);
+
+    if (fmt === 'md') {
+      console.log('\n' + '─'.repeat(60));
+      console.log(output);
+      console.log('─'.repeat(60) + '\n');
+    } else {
+      log(`Open in browser: open ${outputPath}`);
+    }
+  } catch (err) {
+    handleFatalError(err, 'pulse');
+  }
+}
+
+program
+  .command('pulse')
+  .requiredOption('--owner <owner>', 'GitHub repository owner')
+  .requiredOption('--repo <repo>', 'GitHub repository name')
+  .requiredOption('--board <board>', 'Jira board ID')
+  .option('--days <days>', 'Number of days to look back', '1')
+  .option('--output <path>', 'Output file path (default: PULSE_REPORT.md or PULSE_REPORT.html)')
+  .option('--format <fmt>', 'Output format: md or html', 'md')
+  .option('--model <model>', 'OpenAI model to use', 'gpt-4o')
+  .option('--jira-fields <fields>', 'Comma-separated Jira fields to fetch')
+  .option('--jira-sp-field <field>', 'Jira custom field for story points')
+  .action((opts: PulseOptions) => runPulse(opts, process.env));
+
+if (require.main === module) {
+  program.parse(process.argv);
+}
