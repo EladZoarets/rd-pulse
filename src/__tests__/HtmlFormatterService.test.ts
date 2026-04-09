@@ -1,5 +1,5 @@
 import { HtmlFormatterService } from '../services/HtmlFormatterService';
-import { AnalysisResult, ContributorSummary } from '../types';
+import { AnalysisResult, ContributorSummary, UnifiedReport } from '../types';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -225,6 +225,186 @@ describe('HtmlFormatterService', () => {
       const result = makeResult({ risksAndBlockers: ['   ', '  '], largePRs: [] });
       const output = service.format(result);
       expect(output).toContain('No critical risks detected');
+    });
+  });
+
+  // ── formatUnified() ──────────────────────────────────────────────────────────
+
+  describe('formatUnified()', () => {
+    const makeUnifiedReport = (overrides: Partial<UnifiedReport> = {}): UnifiedReport => ({
+      repo: 'acme/backend',
+      boardId: '42',
+      generatedAt: NOW,
+      summary: 'Sprint is on track.',
+      topicBreakdown: [
+        { topic: 'Auth', totalIssues: 2, doneCount: 1, inProgressCount: 1, todoCount: 0, completionPercent: 50 },
+        { topic: 'Infra', totalIssues: 3, doneCount: 3, inProgressCount: 0, todoCount: 0, completionPercent: 100 },
+      ],
+      risks: [
+        { type: 'SPRINT_JEOPARDY', description: 'ENG-1 not started with 2 days left', severity: 'high' },
+        { type: 'UNASSIGNED', description: 'ENG-5 in progress with no owner', severity: 'medium' },
+      ],
+      personalPulse: [
+        { user: 'alice', done: 1, inProgress: 1, inReview: 2, unassignedCount: 0 },
+        { user: 'bob', done: 0, inProgress: 3, inReview: 0, unassignedCount: 1 },
+      ],
+      managersNote: 'Auth is looking good.',
+      rawLLMResponse: '{"summary":"..."}',
+      ...overrides,
+    });
+
+    it('returns a string', () => {
+      expect(typeof service.formatUnified(makeUnifiedReport())).toBe('string');
+    });
+
+    it('returns a complete HTML document', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toMatch(/<!DOCTYPE html>/i);
+      expect(output).toContain('<html');
+      expect(output).toContain('</html>');
+      expect(output).toContain('<body');
+      expect(output).toContain('</body>');
+    });
+
+    it('embeds CSS in a <style> tag', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('<style>');
+      expect(output).not.toContain('<link');
+    });
+
+    it('includes the repo name and board ID', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('acme/backend');
+      expect(output).toContain('42');
+    });
+
+    it('includes the generated date', () => {
+      expect(service.formatUnified(makeUnifiedReport())).toContain('2024-06-15');
+    });
+
+    it('includes a Summary section', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('Summary');
+      expect(output).toContain('Sprint is on track.');
+    });
+
+    it('includes a Topic Breakdown section with topic names and percentages', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('Topic Breakdown');
+      expect(output).toContain('Auth');
+      expect(output).toContain('Infra');
+      expect(output).toContain('50%');
+      expect(output).toContain('100%');
+    });
+
+    it('includes a Danger Zone section with risk types', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('Danger Zone');
+      expect(output).toContain('SPRINT_JEOPARDY');
+      expect(output).toContain('ENG-1 not started with 2 days left');
+    });
+
+    it('includes UNASSIGNED risks in the Danger Zone', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('UNASSIGNED');
+      expect(output).toContain('ENG-5 in progress with no owner');
+    });
+
+    it('includes severity labels for each risk', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('high');
+      expect(output).toContain('medium');
+    });
+
+    it('includes a Personal Pulse section with user names', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('Personal Pulse');
+      expect(output).toContain('alice');
+      expect(output).toContain('bob');
+    });
+
+    it("includes a Manager's Note section", () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain("Manager");
+      expect(output).toContain('Auth is looking good.');
+    });
+
+    it('does not include rawLLMResponse', () => {
+      expect(service.formatUnified(makeUnifiedReport())).not.toContain('"summary"');
+    });
+
+    it('omits Danger Zone when risks is empty', () => {
+      const output = service.formatUnified(makeUnifiedReport({ risks: [] }));
+      expect(output).not.toContain('Danger Zone');
+    });
+
+    it('omits Topic Breakdown when topicBreakdown is empty', () => {
+      const output = service.formatUnified(makeUnifiedReport({ topicBreakdown: [] }));
+      expect(output).not.toContain('Topic Breakdown');
+    });
+
+    it('omits Personal Pulse when personalPulse is empty', () => {
+      const output = service.formatUnified(makeUnifiedReport({ personalPulse: [] }));
+      expect(output).not.toContain('Personal Pulse');
+    });
+
+    it("omits Manager's Note when managersNote is empty", () => {
+      const output = service.formatUnified(makeUnifiedReport({ managersNote: '' }));
+      expect(output).not.toContain('Auth is looking good.');
+    });
+
+    it('omits Summary when summary is empty', () => {
+      const output = service.formatUnified(makeUnifiedReport({ summary: '' }));
+      expect(output).not.toContain('>Summary<');
+    });
+
+    it('escapes HTML special characters in risk descriptions', () => {
+      const output = service.formatUnified(
+        makeUnifiedReport({
+          risks: [{ type: 'GHOST_WORK', description: '<script>alert(1)</script>', severity: 'high' }],
+        })
+      );
+      expect(output).not.toContain('<script>');
+      expect(output).toContain('&lt;script&gt;');
+    });
+
+    it('escapes HTML special characters in topic names', () => {
+      const output = service.formatUnified(
+        makeUnifiedReport({
+          topicBreakdown: [{ topic: '<Auth & Payments>', totalIssues: 1, doneCount: 1, inProgressCount: 0, todoCount: 0, completionPercent: 100 }],
+        })
+      );
+      expect(output).not.toContain('<Auth');
+      expect(output).toContain('&lt;Auth');
+      expect(output).toContain('&amp;');
+    });
+
+    it('escapes HTML special characters in user names', () => {
+      const output = service.formatUnified(
+        makeUnifiedReport({
+          personalPulse: [{ user: '<evil>', done: 0, inProgress: 0, inReview: 0, unassignedCount: 0 }],
+        })
+      );
+      expect(output).not.toContain('<evil>');
+      expect(output).toContain('&lt;evil&gt;');
+    });
+
+    it('is a pure function', () => {
+      const report = makeUnifiedReport();
+      expect(service.formatUnified(report)).toBe(service.formatUnified(report));
+    });
+
+    it('does not throw when array fields are null at runtime', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const report = makeUnifiedReport({ risks: null as any, personalPulse: null as any, topicBreakdown: null as any });
+      expect(() => service.formatUnified(report)).not.toThrow();
+    });
+
+    it('does not throw on invalid generatedAt date', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const report = makeUnifiedReport({ generatedAt: new Date('invalid') as any });
+      expect(() => service.formatUnified(report)).not.toThrow();
+      expect(service.formatUnified(report)).toContain('unknown date');
     });
   });
 });
