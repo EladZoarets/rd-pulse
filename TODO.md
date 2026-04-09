@@ -62,6 +62,29 @@
 
 ---
 
+## Stage 4: AI Assist Tracking
+
+> Goal: surface how much AI tooling (Copilot, Cursor, Claude, etc.) each developer is using,
+> via a lightweight PR-label convention (`ai-assisted`) that works for any tool.
+
+### Types
+- [ ] Task 25 — Extend `types.ts` with AI assist types: `AiAssistStat { user: string; totalPRs: number; aiAssistedPRs: number; acceptanceRate: number }` and add `aiAssistStats: AiAssistStat[]` to `ActivityContext` and `UnifiedReport`
+
+### Data Layer
+- [ ] Task 26 — `GitHubService`: detect `ai-assisted` label on merged PRs; aggregate per-author `AiAssistStat[]`; add unit tests (label present, label absent, mixed, empty PRs)
+
+### Intelligence
+- [ ] Task 27 — `IntelligenceService`: include AI assist stats in `buildUnifiedPrompt()` and `parseUnifiedResponse()`; add risk rule for teams with 0% AI adoption (STALL signal); add unit tests
+
+### Formatters
+- [ ] Task 28 — `FormatterService.formatUnified()`: add **AI Assist** section (markdown table: developer | PRs | AI-assisted | rate %); add unit tests
+- [ ] Task 29 — `HtmlFormatterService.formatUnified()`: add **AI Assist** section to dashboard (per-developer bar showing AI adoption %, badge for high/low adopters); add unit tests
+
+### Onboarding
+- [ ] Task 30 — PR template helper: add `scripts/setup-pr-template.ts` that writes `.github/pull_request_template.md` with an `AI-assisted` checkbox; update `.env.example` and README
+
+---
+
 ## Backlog / Ideas
 - [ ] Support multiple repos in a single run
 - [ ] Configurable report sections (opt-in/out per section)
