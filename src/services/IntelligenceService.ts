@@ -8,6 +8,13 @@ import {
   FeatureTheme,
   GitHubCommit,
   GitHubPR,
+  JiraIssue,
+  JiraSprintContext,
+  PersonalPulse,
+  RiskItem,
+  TopicBreakdown,
+  UnifiedActivity,
+  UnifiedReport,
 } from '../types';
 
 // Token budget: target ~20k prompt tokens leaving 10k for the response.
@@ -17,6 +24,7 @@ const PR_BUDGET_FRACTION = 0.7;
 const COMMIT_BUDGET_FRACTION = 0.9;
 
 const DEFAULT_PROMPT_PATH = path.resolve(process.cwd(), 'prompt.md');
+const DEFAULT_UNIFIED_PROMPT_PATH = path.resolve(process.cwd(), 'prompt-unified.md');
 
 function loadSystemPrompt(promptPath: string = DEFAULT_PROMPT_PATH): string {
   if (fs.existsSync(promptPath)) {
@@ -59,6 +67,41 @@ function isContributorSummary(v: unknown): v is ContributorSummary {
   );
 }
 
+function isTopicBreakdown(v: unknown): v is TopicBreakdown {
+  if (!v || typeof v !== 'object') return false;
+  const obj = v as Record<string, unknown>;
+  return (
+    typeof obj.topic === 'string' &&
+    typeof obj.totalIssues === 'number' &&
+    typeof obj.doneCount === 'number' &&
+    typeof obj.inProgressCount === 'number' &&
+    typeof obj.todoCount === 'number' &&
+    typeof obj.completionPercent === 'number'
+  );
+}
+
+function isRiskItem(v: unknown): v is RiskItem {
+  if (!v || typeof v !== 'object') return false;
+  const obj = v as Record<string, unknown>;
+  return (
+    typeof obj.type === 'string' &&
+    typeof obj.description === 'string' &&
+    (obj.severity === 'high' || obj.severity === 'medium' || obj.severity === 'low')
+  );
+}
+
+function isPersonalPulse(v: unknown): v is PersonalPulse {
+  if (!v || typeof v !== 'object') return false;
+  const obj = v as Record<string, unknown>;
+  return (
+    typeof obj.user === 'string' &&
+    typeof obj.done === 'number' &&
+    typeof obj.inProgress === 'number' &&
+    typeof obj.inReview === 'number' &&
+    typeof obj.unassignedCount === 'number'
+  );
+}
+
 /** Appends items from `list` until `budget` chars is reached. Returns consumed chars. */
 function trimToBudget(list: string[], budget: number): { lines: string[]; chars: number } {
   const lines: string[] = [];
@@ -76,6 +119,7 @@ function trimToBudget(list: string[], budget: number): { lines: string[]; chars:
 export class IntelligenceService {
   private client: OpenAI;
   private systemPrompt: string;
+  private unifiedSystemPrompt: string;
 
   constructor(
     private apiKey: string,
@@ -84,6 +128,12 @@ export class IntelligenceService {
   ) {
     this.client = new OpenAI({ apiKey });
     this.systemPrompt = loadSystemPrompt(promptPath);
+    const unifiedPath = promptPath
+      ? path.join(path.dirname(promptPath), 'prompt-unified.md')
+      : DEFAULT_UNIFIED_PROMPT_PATH;
+    this.unifiedSystemPrompt = fs.existsSync(unifiedPath)
+      ? fs.readFileSync(unifiedPath, 'utf8').trim()
+      : '';
   }
 
   async analyze(context: ActivityContext): Promise<AnalysisResult> {
@@ -92,14 +142,23 @@ export class IntelligenceService {
     return this.parseResponse(raw, context);
   }
 
+  async analyzeUnified(activity: UnifiedActivity): Promise<UnifiedReport> {
+    if (!this.unifiedSystemPrompt) {
+      throw new Error('prompt-unified.md not found. Create it in the project root before calling analyzeUnified().');
+    }
+    const prompt = this.buildUnifiedPrompt(activity);
+    const raw = await this.callOpenAI(prompt, this.unifiedSystemPrompt);
+    return this.parseUnifiedResponse(raw, activity);
+  }
+
   // ── OpenAI call ─────────────────────────────────────────────────────────────
 
-  private async callOpenAI(userPrompt: string): Promise<string> {
+  private async callOpenAI(userPrompt: string, systemPrompt?: string): Promise<string> {
     try {
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: [
-          { role: 'system', content: this.systemPrompt },
+          { role: 'system', content: systemPrompt ?? this.systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.3,
@@ -197,12 +256,18 @@ export class IntelligenceService {
     return [`## Commits (${context.commits.length} total)\n`, ...lines, ''].join('\n');
   }
 
-  private buildFlagSection(context: ActivityContext): string {
-    const { stalePRs, heatedPRs, directCommits, defaultBranch, bigPRs, bigPRThresholds } = context;
-    if (!stalePRs.length && !heatedPRs.length && !directCommits.length && !bigPRs.length)
+  private buildFlagSection(context: ActivityContext, includeGhostWork = true): string {
+    const { stalePRs, heatedPRs, directCommits, defaultBranch, bigPRs, bigPRThresholds, ghostWorkPRs } = context;
+    const ghostEntries = includeGhostWork ? ghostWorkPRs : [];
+    if (!stalePRs.length && !heatedPRs.length && !directCommits.length && !bigPRs.length && !ghostEntries.length)
       return '';
 
     const lines: string[] = ['## Flags\n'];
+    if (ghostEntries.length)
+      lines.push(this.renderFlagSubsection(
+        `Ghost Work PRs (${ghostEntries.length} — no linked Jira ticket)`,
+        ghostEntries.map((pr) => `- PR #${pr.number}: ${pr.title} by ${pr.author} (branch: ${pr.headRef})`)
+      ));
     if (stalePRs.length)
       lines.push(this.renderFlagSubsection(
         `Stale PRs (${stalePRs.length})`,
@@ -233,6 +298,157 @@ export class IntelligenceService {
 
   private renderFlagSubsection(heading: string, items: string[]): string {
     return [`### ${heading}`, ...items, ''].join('\n');
+  }
+
+  // ── Unified response parsing ────────────────────────────────────────────────
+
+  private parseUnifiedResponse(raw: string, activity: UnifiedActivity): UnifiedReport {
+    const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(stripped);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`OpenAI analysis failed: could not parse response JSON — ${msg}`);
+    }
+
+    return {
+      repo: `${activity.github.owner}/${activity.github.repo}`,
+      boardId: activity.jira.boardId,
+      generatedAt: new Date(),
+      summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+      topicBreakdown: Array.isArray(parsed.topicBreakdown)
+        ? parsed.topicBreakdown.filter(isTopicBreakdown)
+        : [],
+      risks: Array.isArray(parsed.risks) ? parsed.risks.filter(isRiskItem) : [],
+      personalPulse: Array.isArray(parsed.personalPulse)
+        ? parsed.personalPulse.filter(isPersonalPulse)
+        : [],
+      managersNote: typeof parsed.managersNote === 'string' ? parsed.managersNote : '',
+      rawLLMResponse: stripped,
+    };
+  }
+
+  // ── Unified prompt building ─────────────────────────────────────────────────
+
+  private buildUnifiedPrompt(activity: UnifiedActivity): string {
+    const { github, jira } = activity;
+    const header = this.buildUnifiedHeader(github, jira);
+    const ghostSection = this.buildGhostWorkSection(github);
+    const full = [
+      header,
+      ghostSection,
+      this.buildPRSection(github),
+      this.buildJiraSection(jira),
+      this.buildFlagSection(github, false),
+    ]
+      .filter(Boolean)
+      .join('\n');
+    return full.length <= MAX_PROMPT_CHARS ? full : this.trimUnifiedPrompt(header, ghostSection, activity);
+  }
+
+  private buildUnifiedHeader(context: ActivityContext, jira: JiraSprintContext): string {
+    return [
+      `Repository: ${context.owner}/${context.repo}`,
+      `Analysis window: ${context.windowStart.toISOString()} → ${context.windowEnd.toISOString()}`,
+      `Default branch: ${context.defaultBranch}`,
+      `Jira Board: ${jira.boardId} | Sprint: ${jira.sprintName}${jira.sprintEndDate ? ` | Ends: ${jira.sprintEndDate}` : ''}`,
+      '',
+    ].join('\n');
+  }
+
+  private buildGhostWorkSection(context: ActivityContext): string {
+    if (!context.ghostWorkPRs.length) return '';
+    const entries = context.ghostWorkPRs.map(
+      (pr) => `- [GHOST WORK] PR #${pr.number}: ${pr.title} by ${pr.author} (branch: ${pr.headRef})`
+    );
+    return [
+      `## Ghost Work PRs (${context.ghostWorkPRs.length} — no linked Jira ticket)\n`,
+      ...entries,
+      '',
+    ].join('\n');
+  }
+
+  private buildJiraSection(jira: JiraSprintContext): string {
+    const lines: string[] = [
+      `## Jira Sprint: ${jira.sprintName} (Board ${jira.boardId})`,
+      jira.sprintEndDate ? `Sprint end: ${jira.sprintEndDate}` : '',
+      '',
+    ];
+
+    if (jira.inProgressIssues.length) {
+      lines.push(`### In Progress (${jira.inProgressIssues.length})`);
+      jira.inProgressIssues.forEach((i) => lines.push(this.renderJiraIssue(i)));
+      lines.push('');
+    }
+    if (jira.todoIssues.length) {
+      lines.push(`### To Do (${jira.todoIssues.length})`);
+      jira.todoIssues.forEach((i) => lines.push(this.renderJiraIssue(i)));
+      lines.push('');
+    }
+    if (jira.doneIssues.length) {
+      lines.push(`### Done (${jira.doneIssues.length})`);
+      jira.doneIssues.forEach((i) => lines.push(this.renderJiraIssue(i)));
+      lines.push('');
+    }
+
+    return lines.filter((l) => l !== undefined).join('\n');
+  }
+
+  private renderJiraIssue(issue: JiraIssue): string {
+    let line = `- ${issue.key}: ${issue.summary}`;
+    line += issue.assignee ? ` (${issue.assignee})` : ' [UNASSIGNED]';
+    if (issue.storyPoints !== null) line += ` [${issue.storyPoints}pts]`;
+    if (issue.epicName) line += ` — Epic: ${issue.epicName}`;
+    return line;
+  }
+
+  private trimUnifiedPrompt(
+    header: string,
+    ghostSection: string,
+    activity: UnifiedActivity
+  ): string {
+    const { github, jira } = activity;
+    const reserved = header.length + ghostSection.length + 200;
+    const budget = Math.max(0, MAX_PROMPT_CHARS - reserved);
+
+    const prItems = github.pullRequests.map(
+      (pr) => `- PR #${pr.number} [${pr.state}]: ${pr.title} by ${pr.author}\n`
+    );
+    const { lines: prLines, chars: prChars } = trimToBudget(
+      prItems,
+      Math.floor(budget * PR_BUDGET_FRACTION)
+    );
+
+    const jiraItems = [
+      ...jira.inProgressIssues,
+      ...jira.todoIssues,
+      ...jira.doneIssues,
+    ].map((i) => `${this.renderJiraIssue(i)}\n`);
+    const { lines: jiraLines, chars: jiraChars } = trimToBudget(
+      jiraItems,
+      Math.floor(Math.max(0, budget - prChars) * COMMIT_BUDGET_FRACTION)
+    );
+
+    const flagBudget = Math.max(0, budget - prChars - jiraChars);
+    const flags = this.buildFlagSection(github, false);
+    const trimmedFlags = flags.length <= flagBudget ? flags : flags.slice(0, flagBudget);
+
+    const prSection = [
+      `## Pull Requests (${github.pullRequests.length} total, trimmed)\n`,
+      ...prLines,
+      '',
+    ].join('\n');
+    const jiraSection = [
+      `## Jira Sprint: ${jira.sprintName} (Board ${jira.boardId}) — trimmed\n`,
+      ...jiraLines,
+      '',
+    ].join('\n');
+
+    return [header, ghostSection, prSection, jiraSection, trimmedFlags]
+      .filter(Boolean)
+      .join('\n');
   }
 
   // ── Context trimming ────────────────────────────────────────────────────────
