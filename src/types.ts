@@ -52,6 +52,7 @@ export interface ActivityContext {
   directCommits: GitHubCommit[];
   bigPRs: GitHubPR[];
   bigPRThresholds: BigPRThresholds;
+  ghostWorkPRs: GitHubPR[];
 }
 
 export interface FeatureTheme {

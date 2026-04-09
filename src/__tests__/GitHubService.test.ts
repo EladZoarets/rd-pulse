@@ -289,6 +289,82 @@ describe('GitHubService', () => {
     });
   });
 
+  // ── fetchActivity — ghost work detection ───────────────────────────────────
+
+  describe('fetchActivity — ghost work detection', () => {
+    it('flags a PR as ghost work when branch and title contain no Jira key', async () => {
+      mockOctokit.paginate.mockImplementationOnce(() =>
+        Promise.resolve([makeRawPR({ head: { ref: 'fix/login-button' }, title: 'Fix login button color' })])
+      );
+      mockOctokit.paginate.mockImplementationOnce(() => Promise.resolve([]));
+      const result = await service.fetchActivity('acme', 'backend');
+      expect(result.ghostWorkPRs).toHaveLength(1);
+      expect(result.ghostWorkPRs[0].headRef).toBe('fix/login-button');
+    });
+
+    it('does not flag a PR as ghost work when branch contains a Jira key', async () => {
+      mockOctokit.paginate.mockImplementationOnce(() =>
+        Promise.resolve([makeRawPR({ head: { ref: 'feature/PROJ-123-login' }, title: 'Add login' })])
+      );
+      mockOctokit.paginate.mockImplementationOnce(() => Promise.resolve([]));
+      const result = await service.fetchActivity('acme', 'backend');
+      expect(result.ghostWorkPRs).toHaveLength(0);
+    });
+
+    it('does not flag a PR as ghost work when title contains a Jira key', async () => {
+      mockOctokit.paginate.mockImplementationOnce(() =>
+        Promise.resolve([makeRawPR({ head: { ref: 'feature/new-dashboard' }, title: '[ABC-45] New dashboard' })])
+      );
+      mockOctokit.paginate.mockImplementationOnce(() => Promise.resolve([]));
+      const result = await service.fetchActivity('acme', 'backend');
+      expect(result.ghostWorkPRs).toHaveLength(0);
+    });
+
+    it('correctly splits a mixed list into ghost and non-ghost PRs', async () => {
+      mockOctokit.paginate.mockImplementationOnce(() =>
+        Promise.resolve([
+          makeRawPR({ number: 1, head: { ref: 'fix/typo' }, title: 'Fix typo' }),
+          makeRawPR({ number: 2, head: { ref: 'feature/XY-99-thing' }, title: 'Add thing' }),
+          makeRawPR({ number: 3, head: { ref: 'chore/cleanup' }, title: 'General cleanup' }),
+        ])
+      );
+      mockOctokit.paginate.mockImplementationOnce(() => Promise.resolve([]));
+      const result = await service.fetchActivity('acme', 'backend');
+      expect(result.ghostWorkPRs).toHaveLength(2);
+      expect(result.ghostWorkPRs.map((p) => p.number)).toEqual([1, 3]);
+    });
+
+    it('returns empty ghostWorkPRs when all PRs have Jira keys', async () => {
+      mockOctokit.paginate.mockImplementationOnce(() =>
+        Promise.resolve([
+          makeRawPR({ head: { ref: 'feature/PROJ-1-login' }, title: 'PROJ-1 login' }),
+        ])
+      );
+      mockOctokit.paginate.mockImplementationOnce(() => Promise.resolve([]));
+      const result = await service.fetchActivity('acme', 'backend');
+      expect(result.ghostWorkPRs).toHaveLength(0);
+    });
+
+    it('does not flag merged or closed PRs as ghost work', async () => {
+      mockOctokit.paginate.mockImplementationOnce(() =>
+        Promise.resolve([
+          makeRawPR({ number: 1, state: 'closed', merged_at: NOW.toISOString(), head: { ref: 'fix/typo' }, title: 'Fix typo' }),
+          makeRawPR({ number: 2, state: 'closed', merged_at: null, head: { ref: 'chore/cleanup' }, title: 'Cleanup' }),
+        ])
+      );
+      mockOctokit.paginate.mockImplementationOnce(() => Promise.resolve([]));
+      const result = await service.fetchActivity('acme', 'backend');
+      expect(result.ghostWorkPRs).toHaveLength(0);
+    });
+
+    it('returns empty ghostWorkPRs when there are no PRs', async () => {
+      mockOctokit.paginate.mockImplementationOnce(() => Promise.resolve([]));
+      mockOctokit.paginate.mockImplementationOnce(() => Promise.resolve([]));
+      const result = await service.fetchActivity('acme', 'backend');
+      expect(result.ghostWorkPRs).toHaveLength(0);
+    });
+  });
+
   // ── fetchActivity — error handling ──────────────────────────────────────────
 
   describe('fetchActivity — error handling', () => {
