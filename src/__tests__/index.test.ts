@@ -77,7 +77,7 @@ const FAKE_JIRA_CTX = {
 
 const FAKE_REPORT = {
   repo: 'acme/backend', boardId: '42', generatedAt: new Date(),
-  summary: 'On track.', topicBreakdown: [], risks: [], personalPulse: [],
+  summary: 'On track.', githubHighlights: [], topicBreakdown: [], risks: [], personalPulse: [],
   managersNote: 'Good.', rawLLMResponse: '{}',
 };
 

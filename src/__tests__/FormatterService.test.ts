@@ -249,6 +249,10 @@ describe('FormatterService', () => {
       boardId: '42',
       generatedAt: NOW,
       summary: 'Sprint is on track with auth progressing well.',
+      githubHighlights: [
+        { type: 'PR_MERGED', ref: 'PR #10', author: 'alice', description: 'feat: add OAuth2 login' },
+        { type: 'GHOST_WORK', ref: 'PR #11', author: 'bob', description: 'random cleanup — no Jira ticket' },
+      ],
       topicBreakdown: [
         { topic: 'Auth', totalIssues: 2, doneCount: 1, inProgressCount: 1, todoCount: 0, completionPercent: 50 },
         { topic: 'Infra', totalIssues: 3, doneCount: 3, inProgressCount: 0, todoCount: 0, completionPercent: 100 },
@@ -368,6 +372,20 @@ describe('FormatterService', () => {
     it('omits Summary section when summary is empty', () => {
       const output = service.formatUnified(makeUnifiedReport({ summary: '' }));
       expect(output).not.toContain('## Summary');
+    });
+
+    it('includes GitHub Activity section with PR refs and authors', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('GitHub Activity');
+      expect(output).toContain('PR #10');
+      expect(output).toContain('alice');
+      expect(output).toContain('PR_MERGED');
+      expect(output).toContain('GHOST_WORK');
+    });
+
+    it('omits GitHub Activity section when githubHighlights is empty', () => {
+      const output = service.formatUnified(makeUnifiedReport({ githubHighlights: [] }));
+      expect(output).not.toContain('GitHub Activity');
     });
 
     it('is a pure function — same input produces same output', () => {

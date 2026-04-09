@@ -2,6 +2,7 @@ import {
   AnalysisResult,
   ContributorSummary,
   FeatureTheme,
+  GitHubHighlight,
   PersonalPulse,
   RiskItem,
   TopicBreakdown,
@@ -72,6 +73,13 @@ function renderBulletList(heading: string, items: string[]): string {
 
 // ── Unified helpers ───────────────────────────────────────────────────────────
 
+function renderGitHubHighlights(highlights: GitHubHighlight[]): string {
+  const lines = highlights.map(
+    (h) => `- **[${h.type}]** ${sanitizeLine(h.ref)} by ${sanitizeLine(h.author)} — ${sanitizeLine(h.description)}`
+  );
+  return ['## GitHub Activity', ...lines].join('\n');
+}
+
 function renderUnifiedHeader(report: UnifiedReport): string {
   return `# Sprint Pulse — ${report.repo} (Board ${report.boardId})\n_Generated: ${report.generatedAt.toISOString()}_`;
 }
@@ -135,6 +143,7 @@ export class FormatterService {
   }
 
   formatUnified(report: UnifiedReport): string {
+    const githubHighlights = report.githubHighlights ?? [];
     const topicBreakdown = report.topicBreakdown ?? [];
     const risks = report.risks ?? [];
     const personalPulse = report.personalPulse ?? [];
@@ -143,6 +152,8 @@ export class FormatterService {
 
     if (report.summary?.trim())
       sections.push(`## Summary\n\n${sanitizeLine(report.summary)}`);
+    if (githubHighlights.length > 0)
+      sections.push(renderGitHubHighlights(githubHighlights));
     if (topicBreakdown.length > 0)
       sections.push(renderTopicBreakdown(topicBreakdown));
     if (risks.length > 0)

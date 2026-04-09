@@ -13,15 +13,15 @@
 - [x] Task 6 — `FormatterService.ts` — convert AnalysisResult to structured DAILY_PULSE.md
 
 ### Utilities
-- [ ] Task 7 — `logger.ts` — ASCII header, progress logs, fatal error handler
-- [ ] Task 8 — `tokenCounter.ts` — token budget enforcement, tiered trimming strategy
+- [x] Task 7 — `logger.ts` — ASCII header, progress logs, fatal error handler
+- [x] Task 8 — `tokenCounter.ts` — token budget enforcement, tiered trimming strategy
 
 ### CLI
-- [ ] Task 9 — `index.ts` — wire up commander, orchestrate full pipeline, error handling
+- [x] Task 9 — `index.ts` — wire up commander, orchestrate full pipeline, error handling
 
 ### Polish
-- [ ] Task 10 — End-to-end test against a real GitHub repo
-- [ ] Task 11 — Update CLAUDE.md with dev setup and module docs
+- [x] Task 10 — End-to-end test against a real GitHub repo
+- [x] Task 11 — Update CLAUDE.md with dev setup and module docs
 
 ---
 
@@ -38,15 +38,15 @@
 - [x] Task 15 — Add `ghostWorkPRs: GitHubPR[]` to `ActivityContext` in `types.ts`; flag PRs in `GitHubService` where branch name AND title contain no `[A-Z]+-\d+` pattern; add unit tests
 
 ### IntelligenceService
-- [ ] Task 16 — `IntelligenceService.test.ts` additions (red phase) — `analyzeUnified()`: valid `UnifiedReport`, pre-labeled Ghost Work PRs, token-trimmed path, empty LLM response, malformed JSON
-- [ ] Task 17 — Implement `IntelligenceService.analyzeUnified(activity: UnifiedActivity)` + `buildUnifiedPrompt()` + `parseUnifiedResponse()`; write `prompt-unified.md` (Ghost Work pre-labeled, Unassigned risk rule, Sprint Jeopardy, Overload, Stall)
+- [x] Task 16 — `IntelligenceService.test.ts` additions (red phase) — `analyzeUnified()`: valid `UnifiedReport`, pre-labeled Ghost Work PRs, token-trimmed path, empty LLM response, malformed JSON
+- [x] Task 17 — Implement `IntelligenceService.analyzeUnified(activity: UnifiedActivity)` + `buildUnifiedPrompt()` + `parseUnifiedResponse()`; write `prompt-unified.md` (Ghost Work pre-labeled, Unassigned risk rule, Sprint Jeopardy, Overload, Stall)
 
 ### Formatters
-- [ ] Task 18 — `FormatterService.test.ts` additions + implement `formatUnified(report: UnifiedReport)` — 5 sections: Summary, Topic Breakdown, Risk/Danger Zone (with UNASSIGNED risk), Personal Pulse table, Manager's Note
-- [ ] Task 19 — `HtmlFormatterService.test.ts` additions + implement `formatUnified(report: UnifiedReport)` — HTML equivalent
+- [x] Task 18 — `FormatterService.test.ts` additions + implement `formatUnified(report: UnifiedReport)` — 5 sections: Summary, Topic Breakdown, Risk/Danger Zone (with UNASSIGNED risk), Personal Pulse table, Manager's Note
+- [x] Task 19 — `HtmlFormatterService.test.ts` additions + implement `formatUnified(report: UnifiedReport)` — HTML equivalent
 
 ### CLI
-- [ ] Task 20 — Add `pulse` command to `index.ts`: `--owner`, `--repo`, `--board`, `--days`, `--format`, `--model`, `--jira-fields`, `--jira-sp-field`; validate `JIRA_DOMAIN`, `JIRA_EMAIL`, `JIRA_TOKEN`; orchestrate unified pipeline; update `.env.example`
+- [x] Task 20 — Add `pulse` command to `index.ts`: `--owner`, `--repo`, `--board`, `--days`, `--format`, `--model`, `--jira-fields`, `--jira-sp-field`; validate `JIRA_DOMAIN`, `JIRA_EMAIL`, `JIRA_TOKEN`; orchestrate unified pipeline; update `.env.example`
 
 ---
 
@@ -59,6 +59,29 @@
 ### Delivery
 - [ ] Task 23 — Email service — compose and send daily digest via SMTP or SendGrid
 - [ ] Task 24 — Scheduling — cron job or external trigger for automated daily runs
+
+---
+
+## Stage 4: AI Assist Tracking
+
+> Goal: surface how much AI tooling (Copilot, Cursor, Claude, etc.) each developer is using,
+> via a lightweight PR-label convention (`ai-assisted`) that works for any tool.
+
+### Types
+- [ ] Task 25 — Extend `types.ts` with AI assist types: `AiAssistStat { user: string; totalPRs: number; aiAssistedPRs: number; acceptanceRate: number }` and add `aiAssistStats: AiAssistStat[]` to `ActivityContext` and `UnifiedReport`
+
+### Data Layer
+- [ ] Task 26 — `GitHubService`: detect `ai-assisted` label on merged PRs; aggregate per-author `AiAssistStat[]`; add unit tests (label present, label absent, mixed, empty PRs)
+
+### Intelligence
+- [ ] Task 27 — `IntelligenceService`: include AI assist stats in `buildUnifiedPrompt()` and `parseUnifiedResponse()`; add risk rule for teams with 0% AI adoption (STALL signal); add unit tests
+
+### Formatters
+- [ ] Task 28 — `FormatterService.formatUnified()`: add **AI Assist** section (markdown table: developer | PRs | AI-assisted | rate %); add unit tests
+- [ ] Task 29 — `HtmlFormatterService.formatUnified()`: add **AI Assist** section to dashboard (per-developer bar showing AI adoption %, badge for high/low adopters); add unit tests
+
+### Onboarding
+- [ ] Task 30 — PR template helper: add `scripts/setup-pr-template.ts` that writes `.github/pull_request_template.md` with an `AI-assisted` checkbox; update `.env.example` and README
 
 ---
 

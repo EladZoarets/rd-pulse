@@ -2,6 +2,7 @@ import {
   AnalysisResult,
   ContributorSummary,
   FeatureTheme,
+  GitHubHighlight,
   PersonalPulse,
   RiskItem,
   TopicBreakdown,
@@ -134,65 +135,143 @@ function renderManagersNote(note: string): string {
   </section>`;
 }
 
-// ── Unified section renderers ─────────────────────────────────────────────────
+// ── Unified dashboard renderers ───────────────────────────────────────────────
 
-function renderUnifiedTopicBreakdown(topics: TopicBreakdown[]): string {
-  const rows = topics
-    .map(
-      (t) => `<tr>
-          <td>${esc(t.topic)}</td>
-          <td>${t.totalIssues}</td>
-          <td>${t.doneCount}</td>
-          <td>${t.inProgressCount}</td>
-          <td>${t.todoCount}</td>
-          <td><strong>${t.completionPercent}%</strong></td>
-        </tr>`
-    )
-    .join('');
-  return `<section class="full-width">
-    <h2>Topic Breakdown</h2>
-    <table class="pulse-table">
-      <thead><tr><th>Topic</th><th>Total</th><th>Done</th><th>In Progress</th><th>To Do</th><th>Completion</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </section>`;
+function sprintHealth(risks: RiskItem[]): { label: string; color: string; bg: string } {
+  if (risks.some((r) => r.severity === 'high'))
+    return { label: 'AT RISK', color: '#ef4444', bg: '#fef2f2' };
+  if (risks.some((r) => r.severity === 'medium'))
+    return { label: 'NEEDS ATTENTION', color: '#f59e0b', bg: '#fffbeb' };
+  return { label: 'ON TRACK', color: '#10b981', bg: '#f0fdf4' };
 }
 
-function renderUnifiedDangerZone(risks: RiskItem[]): string {
-  const items = risks
-    .map(
-      (r) =>
-        `<div class="risk-item unified-risk">
-          <span class="badge badge-${r.severity}">${esc(r.type)}</span>
-          <span>${esc(r.description)}</span>
-        </div>`
-    )
-    .join('');
-  return `<section class="full-width">
-    <h2>Danger Zone ⚠️</h2>
-    ${items}
-  </section>`;
+function sprintStats(topics: TopicBreakdown[]): { total: number; done: number; wip: number; todo: number; donePercent: number; wipPercent: number } {
+  const total = topics.reduce((s, t) => s + t.totalIssues, 0);
+  const done  = topics.reduce((s, t) => s + t.doneCount, 0);
+  const wip   = topics.reduce((s, t) => s + t.inProgressCount, 0);
+  const todo  = topics.reduce((s, t) => s + t.todoCount, 0);
+  return {
+    total, done, wip, todo,
+    donePercent: total ? Math.round((done / total) * 100) : 0,
+    wipPercent:  total ? Math.round((wip  / total) * 100) : 0,
+  };
 }
 
-function renderUnifiedPersonalPulse(pulse: PersonalPulse[]): string {
-  const rows = pulse
-    .map(
-      (p) => `<tr>
-          <td><strong>${esc(p.user)}</strong></td>
-          <td>${p.done}</td>
-          <td>${p.inProgress}</td>
-          <td>${p.inReview}</td>
-          <td>${p.unassignedCount}</td>
-        </tr>`
-    )
-    .join('');
-  return `<section class="full-width">
-    <h2>Personal Pulse</h2>
-    <table class="pulse-table">
-      <thead><tr><th>Person</th><th>Done</th><th>In Progress</th><th>In Review</th><th>Unassigned</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </section>`;
+function renderDonut(donePercent: number, wipPercent: number): string {
+  // SVG donut: r=15.9, circumference ≈ 100; start at 12 o'clock (offset=25)
+  const doneOffset = 25;
+  const wipOffset  = doneOffset - donePercent;
+  return `<svg viewBox="0 0 36 36" width="100" height="100" style="display:block;margin:0 auto">
+    <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" stroke-width="3.5"/>
+    <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f59e0b" stroke-width="3.5"
+      stroke-dasharray="${wipPercent} ${100 - wipPercent}"
+      stroke-dashoffset="${wipOffset}" stroke-linecap="round"/>
+    <circle cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" stroke-width="3.5"
+      stroke-dasharray="${donePercent} ${100 - donePercent}"
+      stroke-dashoffset="${doneOffset}" stroke-linecap="round"/>
+    <text x="18" y="19.5" text-anchor="middle" font-size="6" font-weight="700" fill="#1e293b">${donePercent}%</text>
+    <text x="18" y="25" text-anchor="middle" font-size="3.5" fill="#64748b">done</text>
+  </svg>`;
+}
+
+function renderDangerZoneCards(risks: RiskItem[]): string {
+  const severityStyle: Record<string, string> = {
+    high:   'border-left:4px solid #ef4444;background:#fef2f2',
+    medium: 'border-left:4px solid #f59e0b;background:#fffbeb',
+    low:    'border-left:4px solid #10b981;background:#f0fdf4',
+  };
+  const severityIcon: Record<string, string> = { high: '🔴', medium: '🟡', low: '🟢' };
+
+  return risks.map((r) => `
+    <div style="padding:.85rem 1rem;border-radius:8px;margin-bottom:.65rem;${severityStyle[r.severity] ?? ''}">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
+        <span>${severityIcon[r.severity] ?? '⚪'}</span>
+        <span style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#475569">${esc(r.type)}</span>
+        <span class="badge badge-${r.severity}" style="margin-left:auto">${esc(r.severity)}</span>
+      </div>
+      <p style="font-size:.875rem;color:#1e293b;margin:0">${esc(r.description)}</p>
+    </div>`).join('');
+}
+
+function renderPersonalPulseCards(pulse: PersonalPulse[], risks: RiskItem[]): string {
+  const riskText = risks.map((r) => r.description.toLowerCase()).join(' ');
+  const maxWork = Math.max(...pulse.map((p) => p.done + p.inProgress + p.inReview), 1);
+
+  return pulse.map((p) => {
+    const total = p.done + p.inProgress + p.inReview;
+    const doneW = Math.round((p.done / maxWork) * 100);
+    const wipW  = Math.round((p.inProgress / maxWork) * 100);
+    const revW  = Math.round((p.inReview / maxWork) * 100);
+    const isOverloaded = riskText.includes(p.user.toLowerCase()) && p.inProgress > 3;
+    const hasUnassigned = p.unassignedCount > 0;
+
+    const warnings = [
+      isOverloaded  ? `<span style="font-size:.65rem;background:#fee2e2;color:#ef4444;padding:.1rem .4rem;border-radius:4px;font-weight:700">OVERLOADED</span>` : '',
+      hasUnassigned ? `<span style="font-size:.65rem;background:#fef3c7;color:#92400e;padding:.1rem .4rem;border-radius:4px;font-weight:700">${p.unassignedCount} UNASSIGNED</span>` : '',
+    ].filter(Boolean).join(' ');
+
+    return `<div style="padding:.75rem 0;border-bottom:1px solid #e2e8f0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+        <span style="font-weight:600;font-size:.9rem">${esc(p.user)}</span>
+        <div style="display:flex;gap:.3rem;align-items:center">${warnings}</div>
+      </div>
+      <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:#f1f5f9;margin-bottom:.3rem">
+        <div style="width:${doneW}%;background:#10b981"></div>
+        <div style="width:${wipW}%;background:#f59e0b"></div>
+        <div style="width:${revW}%;background:#60a5fa"></div>
+      </div>
+      <div style="font-size:.72rem;color:#64748b">
+        ✅ ${p.done} done &nbsp;·&nbsp; 🔄 ${p.inProgress} in progress &nbsp;·&nbsp; 👁 ${p.inReview} in review &nbsp;·&nbsp; ${total} total
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderTopicBars(topics: TopicBreakdown[]): string {
+  return topics.map((t) => {
+    const doneW = t.totalIssues ? Math.round((t.doneCount / t.totalIssues) * 100) : 0;
+    const wipW  = t.totalIssues ? Math.round((t.inProgressCount / t.totalIssues) * 100) : 0;
+    const todoW = t.totalIssues ? Math.round((t.todoCount / t.totalIssues) * 100) : 0;
+    const pct   = t.completionPercent;
+    const color = pct >= 80 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#ef4444';
+
+    return `<div style="margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.35rem">
+        <span style="font-weight:600;font-size:.875rem">${esc(t.topic)}</span>
+        <span style="font-size:.75rem;color:#64748b">${t.doneCount}/${t.totalIssues} done &nbsp;·&nbsp; ${t.inProgressCount} WIP &nbsp;·&nbsp; ${t.todoCount} todo</span>
+      </div>
+      <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;background:#f1f5f9">
+        <div style="width:${doneW}%;background:#10b981"></div>
+        <div style="width:${wipW}%;background:#f59e0b"></div>
+        <div style="width:${todoW}%;background:#cbd5e1"></div>
+      </div>
+      <div style="text-align:right;font-size:.72rem;font-weight:700;color:${color};margin-top:.2rem">${pct}%</div>
+    </div>`;
+  }).join('');
+}
+
+function renderGitHubTimeline(highlights: GitHubHighlight[]): string {
+  const typeStyle: Record<string, { icon: string; color: string; bg: string }> = {
+    PR_MERGED:    { icon: '✅', color: '#059669', bg: '#ecfdf5' },
+    PR_IN_REVIEW: { icon: '👁', color: '#2563eb', bg: '#eff6ff' },
+    GHOST_WORK:   { icon: '👻', color: '#dc2626', bg: '#fef2f2' },
+    DIRECT_COMMIT:{ icon: '⚡', color: '#d97706', bg: '#fffbeb' },
+  };
+
+  return highlights.map((h) => {
+    const s = typeStyle[h.type] ?? { icon: '•', color: '#475569', bg: '#f8fafc' };
+    return `<div style="display:flex;gap:.75rem;align-items:flex-start;padding:.6rem .75rem;border-radius:8px;background:${s.bg};margin-bottom:.5rem">
+      <span style="font-size:1rem;line-height:1.4">${s.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+          <span style="font-weight:600;font-size:.85rem;color:${s.color}">${esc(h.ref)}</span>
+          <span style="font-size:.75rem;color:#64748b">by ${esc(h.author)}</span>
+          <span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${s.color};margin-left:auto">${esc(h.type.replace(/_/g, ' '))}</span>
+        </div>
+        <p style="font-size:.8rem;color:#475569;margin:.15rem 0 0">${esc(h.description)}</p>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ── CSS (verbatim from design) ────────────────────────────────────────────────
@@ -317,37 +396,82 @@ ${main}
 
   formatUnified(report: UnifiedReport): string {
     const repo = report.repo || '(unknown repo)';
+    const githubHighlights = report.githubHighlights ?? [];
     const topicBreakdown = report.topicBreakdown ?? [];
     const risks = report.risks ?? [];
     const personalPulse = report.personalPulse ?? [];
 
-    const sections: string[] = [];
+    const health = sprintHealth(risks);
+    const stats  = sprintStats(topicBreakdown);
 
-    if (report.summary?.trim())
-      sections.push(`<section class="full-width">
-    <h2>Summary</h2>
-    <p>${esc(report.summary)}</p>
-  </section>`);
+    // ── Health banner ─────────────────────────────────────────────────────────
+    const banner = `<div style="grid-column:1/-1;background:${health.bg};border:1.5px solid ${health.color};border-radius:10px;padding:1rem 1.5rem;display:flex;align-items:center;gap:1rem">
+      <span style="font-size:1.75rem">${health.label === 'AT RISK' ? '🔴' : health.label === 'NEEDS ATTENTION' ? '🟡' : '🟢'}</span>
+      <div>
+        <div style="font-size:1rem;font-weight:700;color:${health.color}">${health.label}</div>
+        <div style="font-size:.8rem;color:#475569">${risks.length} risk${risks.length !== 1 ? 's' : ''} · ${stats.done}/${stats.total} issues done</div>
+      </div>
+    </div>`;
 
-    if (topicBreakdown.length > 0)
-      sections.push(renderUnifiedTopicBreakdown(topicBreakdown));
+    // ── KPI strip + donut ─────────────────────────────────────────────────────
+    const kpi = topicBreakdown.length > 0 ? `<section class="full-width" style="padding:1.25rem 1.5rem">
+      <div style="display:flex;align-items:center;gap:2.5rem;flex-wrap:wrap">
+        ${renderDonut(stats.donePercent, stats.wipPercent)}
+        <div style="display:grid;grid-template-columns:repeat(3,auto);gap:.5rem 2rem">
+          <div><div style="font-size:1.5rem;font-weight:700;color:#10b981">${stats.done}</div><div style="font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Done</div></div>
+          <div><div style="font-size:1.5rem;font-weight:700;color:#f59e0b">${stats.wip}</div><div style="font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em">In Progress</div></div>
+          <div><div style="font-size:1.5rem;font-weight:700;color:#94a3b8">${stats.todo}</div><div style="font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em">To Do</div></div>
+        </div>
+      </div>
+    </section>` : '';
 
-    if (risks.length > 0)
-      sections.push(renderUnifiedDangerZone(risks));
+    // ── Summary ───────────────────────────────────────────────────────────────
+    const summarySection = report.summary?.trim() ? `<section class="full-width">
+      <h2>Summary</h2>
+      <p style="font-size:.9rem;line-height:1.6;color:var(--text-main)">${esc(report.summary)}</p>
+    </section>` : '';
 
-    if (personalPulse.length > 0)
-      sections.push(renderUnifiedPersonalPulse(personalPulse));
+    // ── Danger Zone ───────────────────────────────────────────────────────────
+    const dangerSection = risks.length > 0 ? `<section>
+      <h2>Danger Zone ⚠️</h2>
+      ${renderDangerZoneCards(risks)}
+    </section>` : '';
 
-    if (report.managersNote?.trim())
-      sections.push(renderManagersNote(report.managersNote));
+    // ── Personal Pulse ────────────────────────────────────────────────────────
+    const pulseSection = personalPulse.length > 0 ? `<section>
+      <h2>Personal Pulse</h2>
+      ${renderPersonalPulseCards(personalPulse, risks)}
+    </section>` : '';
+
+    // ── Topic Breakdown ───────────────────────────────────────────────────────
+    const topicSection = topicBreakdown.length > 0 ? `<section class="full-width">
+      <h2>Topic Breakdown</h2>
+      ${renderTopicBars(topicBreakdown)}
+    </section>` : '';
+
+    // ── GitHub Activity ───────────────────────────────────────────────────────
+    const githubSection = githubHighlights.length > 0 ? `<section class="full-width">
+      <h2>GitHub Activity</h2>
+      ${renderGitHubTimeline(githubHighlights)}
+    </section>` : '';
+
+    // ── Manager's Note ────────────────────────────────────────────────────────
+    const noteSection = renderManagersNote(report.managersNote ?? '');
 
     const header = `<header>
       <h1>SPRINT-PULSE / ${esc(repo.toUpperCase())} · Board ${esc(report.boardId)}</h1>
       <p>Snapshot: ${esc(formatSnapshotDate(report.generatedAt))}</p>
     </header>`;
 
-    const main = `<main style="display:block;max-width:1100px;margin:2rem auto;padding:0 1rem">
-      ${sections.join('\n      ')}
+    const main = `<main>
+      ${banner}
+      ${kpi}
+      ${summarySection}
+      ${dangerSection}
+      ${pulseSection}
+      ${topicSection}
+      ${githubSection}
+      ${noteSection}
     </main>`;
 
     const head = `<head>

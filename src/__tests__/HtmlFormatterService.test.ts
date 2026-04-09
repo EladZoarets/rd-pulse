@@ -236,6 +236,10 @@ describe('HtmlFormatterService', () => {
       boardId: '42',
       generatedAt: NOW,
       summary: 'Sprint is on track.',
+      githubHighlights: [
+        { type: 'PR_MERGED', ref: 'PR #10', author: 'alice', description: 'feat: add OAuth2 login' },
+        { type: 'GHOST_WORK', ref: 'PR #11', author: 'bob', description: 'random cleanup — no Jira ticket' },
+      ],
       topicBreakdown: [
         { topic: 'Auth', totalIssues: 2, doneCount: 1, inProgressCount: 1, todoCount: 0, completionPercent: 50 },
         { topic: 'Infra', totalIssues: 3, doneCount: 3, inProgressCount: 0, todoCount: 0, completionPercent: 100 },
@@ -356,6 +360,28 @@ describe('HtmlFormatterService', () => {
     it('omits Summary when summary is empty', () => {
       const output = service.formatUnified(makeUnifiedReport({ summary: '' }));
       expect(output).not.toContain('>Summary<');
+    });
+
+    it('includes GitHub Activity section with PR refs and authors', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('GitHub Activity');
+      expect(output).toContain('PR #10');
+      expect(output).toContain('alice');
+      expect(output).toContain('PR MERGED');
+      expect(output).toContain('GHOST WORK');
+    });
+
+    it('omits GitHub Activity section when githubHighlights is empty', () => {
+      const output = service.formatUnified(makeUnifiedReport({ githubHighlights: [] }));
+      expect(output).not.toContain('GitHub Activity');
+    });
+
+    it('escapes HTML in highlight description', () => {
+      const output = service.formatUnified(makeUnifiedReport({
+        githubHighlights: [{ type: 'PR_MERGED', ref: 'PR #1', author: 'dev', description: '<script>xss</script>' }],
+      }));
+      expect(output).not.toContain('<script>');
+      expect(output).toContain('&lt;script&gt;');
     });
 
     it('escapes HTML special characters in risk descriptions', () => {
