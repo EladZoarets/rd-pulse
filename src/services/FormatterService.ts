@@ -1,4 +1,12 @@
-import { AnalysisResult, ContributorSummary, FeatureTheme } from '../types';
+import {
+  AnalysisResult,
+  ContributorSummary,
+  FeatureTheme,
+  PersonalPulse,
+  RiskItem,
+  TopicBreakdown,
+  UnifiedReport,
+} from '../types';
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -62,6 +70,40 @@ function renderBulletList(heading: string, items: string[]): string {
   return `## ${heading}\n\n${bullets}`;
 }
 
+// ── Unified helpers ───────────────────────────────────────────────────────────
+
+function renderUnifiedHeader(report: UnifiedReport): string {
+  return `# Sprint Pulse — ${report.repo} (Board ${report.boardId})\n_Generated: ${report.generatedAt.toISOString()}_`;
+}
+
+function renderTopicBreakdown(topics: TopicBreakdown[]): string {
+  const header = '| Topic | Total | Done | In Progress | To Do | Completion |';
+  const sep    = '|-------|-------|------|-------------|-------|------------|';
+  const rows = topics.map(
+    (t) =>
+      `| ${sanitizeLine(t.topic)} | ${t.totalIssues} | ${t.doneCount} | ${t.inProgressCount} | ${t.todoCount} | ${t.completionPercent}% |`
+  );
+  return ['## Topic Breakdown', '', header, sep, ...rows].join('\n');
+}
+
+function renderRiskItem(risk: RiskItem): string {
+  return `### ${risk.type} · ${risk.severity}\n${sanitizeLine(risk.description)}`;
+}
+
+function renderDangerZone(risks: RiskItem[]): string {
+  return ['## Danger Zone ⚠️', ...risks.map(renderRiskItem)].join('\n\n');
+}
+
+function renderPersonalPulseTable(pulse: PersonalPulse[]): string {
+  const header = '| Person | Done | In Progress | In Review | Unassigned |';
+  const sep    = '|--------|------|-------------|-----------|------------|';
+  const rows = pulse.map(
+    (p) =>
+      `| ${sanitizeLine(p.user)} | ${p.done} | ${p.inProgress} | ${p.inReview} | ${p.unassignedCount} |`
+  );
+  return ['## Personal Pulse', '', header, sep, ...rows].join('\n');
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export class FormatterService {
@@ -88,6 +130,27 @@ export class FormatterService {
       sections.push(renderBulletList('Risks & Blockers', risksAndBlockers));
     if ((result.largePRs ?? []).filter((i) => i.trim()).length > 0)
       sections.push(renderBulletList('Large PRs', result.largePRs));
+
+    return sections.join('\n\n');
+  }
+
+  formatUnified(report: UnifiedReport): string {
+    const topicBreakdown = report.topicBreakdown ?? [];
+    const risks = report.risks ?? [];
+    const personalPulse = report.personalPulse ?? [];
+
+    const sections: string[] = [renderUnifiedHeader(report)];
+
+    if (report.summary?.trim())
+      sections.push(`## Summary\n\n${sanitizeLine(report.summary)}`);
+    if (topicBreakdown.length > 0)
+      sections.push(renderTopicBreakdown(topicBreakdown));
+    if (risks.length > 0)
+      sections.push(renderDangerZone(risks));
+    if (personalPulse.length > 0)
+      sections.push(renderPersonalPulseTable(personalPulse));
+    if (report.managersNote?.trim())
+      sections.push(renderManagersNote(report.managersNote));
 
     return sections.join('\n\n');
   }

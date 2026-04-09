@@ -1,5 +1,5 @@
 import { FormatterService } from '../services/FormatterService';
-import { AnalysisResult, ContributorSummary } from '../types';
+import { AnalysisResult, ContributorSummary, UnifiedReport } from '../types';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -238,6 +238,152 @@ describe('FormatterService', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = makeResult({ featureThemes: null as any, keyAchievements: null as any });
       expect(() => service.format(result)).not.toThrow();
+    });
+  });
+
+  // ── formatUnified() ──────────────────────────────────────────────────────────
+
+  describe('formatUnified()', () => {
+    const makeUnifiedReport = (overrides: Partial<UnifiedReport> = {}): UnifiedReport => ({
+      repo: 'acme/backend',
+      boardId: '42',
+      generatedAt: NOW,
+      summary: 'Sprint is on track with auth progressing well.',
+      topicBreakdown: [
+        { topic: 'Auth', totalIssues: 2, doneCount: 1, inProgressCount: 1, todoCount: 0, completionPercent: 50 },
+        { topic: 'Infra', totalIssues: 3, doneCount: 3, inProgressCount: 0, todoCount: 0, completionPercent: 100 },
+      ],
+      risks: [
+        { type: 'SPRINT_JEOPARDY', description: 'ENG-1 not started with 2 days left', severity: 'high' },
+        { type: 'UNASSIGNED', description: 'ENG-5 in progress with no owner', severity: 'medium' },
+      ],
+      personalPulse: [
+        { user: 'alice', done: 1, inProgress: 1, inReview: 2, unassignedCount: 0 },
+        { user: 'bob', done: 0, inProgress: 3, inReview: 0, unassignedCount: 1 },
+      ],
+      managersNote: 'Auth is looking good. Watch ENG-1.',
+      rawLLMResponse: '{"summary":"..."}',
+      ...overrides,
+    });
+
+    it('returns a string', () => {
+      expect(typeof service.formatUnified(makeUnifiedReport())).toBe('string');
+    });
+
+    it('includes the repo name and board ID in the header', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('acme/backend');
+      expect(output).toContain('42');
+    });
+
+    it('starts with an h1 heading', () => {
+      expect(service.formatUnified(makeUnifiedReport())).toMatch(/^# /);
+    });
+
+    it('includes the generatedAt date', () => {
+      expect(service.formatUnified(makeUnifiedReport())).toContain('2024-06-15');
+    });
+
+    it('includes a Summary section with the summary text', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('## Summary');
+      expect(output).toContain('Sprint is on track with auth progressing well.');
+    });
+
+    it('includes a Topic Breakdown section with topic names', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('Topic Breakdown');
+      expect(output).toContain('Auth');
+      expect(output).toContain('Infra');
+    });
+
+    it('includes completion percentages in the topic breakdown', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('50%');
+      expect(output).toContain('100%');
+    });
+
+    it('includes a Danger Zone section when risks exist', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('Danger Zone');
+      expect(output).toContain('SPRINT_JEOPARDY');
+      expect(output).toContain('ENG-1 not started with 2 days left');
+    });
+
+    it('highlights UNASSIGNED risks in the Danger Zone', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('UNASSIGNED');
+      expect(output).toContain('ENG-5 in progress with no owner');
+    });
+
+    it('includes severity labels for risks', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('high');
+      expect(output).toContain('medium');
+    });
+
+    it('includes a Personal Pulse section with contributor names', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('Personal Pulse');
+      expect(output).toContain('alice');
+      expect(output).toContain('bob');
+    });
+
+    it('includes done/inProgress/inReview/unassigned counts in Personal Pulse', () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain('In Progress');
+      expect(output).toContain('In Review');
+    });
+
+    it("includes a Manager's Note section", () => {
+      const output = service.formatUnified(makeUnifiedReport());
+      expect(output).toContain("Manager's Note");
+      expect(output).toContain('Auth is looking good. Watch ENG-1.');
+    });
+
+    it('does not include rawLLMResponse in the output', () => {
+      expect(service.formatUnified(makeUnifiedReport())).not.toContain('"summary"');
+    });
+
+    it('omits Danger Zone section when risks is empty', () => {
+      const output = service.formatUnified(makeUnifiedReport({ risks: [] }));
+      expect(output).not.toContain('Danger Zone');
+    });
+
+    it('omits Topic Breakdown section when topicBreakdown is empty', () => {
+      const output = service.formatUnified(makeUnifiedReport({ topicBreakdown: [] }));
+      expect(output).not.toContain('Topic Breakdown');
+    });
+
+    it('omits Personal Pulse section when personalPulse is empty', () => {
+      const output = service.formatUnified(makeUnifiedReport({ personalPulse: [] }));
+      expect(output).not.toContain('Personal Pulse');
+    });
+
+    it("omits Manager's Note when managersNote is empty", () => {
+      const output = service.formatUnified(makeUnifiedReport({ managersNote: '' }));
+      expect(output).not.toContain("Manager's Note");
+    });
+
+    it('omits Summary section when summary is empty', () => {
+      const output = service.formatUnified(makeUnifiedReport({ summary: '' }));
+      expect(output).not.toContain('## Summary');
+    });
+
+    it('is a pure function — same input produces same output', () => {
+      const report = makeUnifiedReport();
+      expect(service.formatUnified(report)).toBe(service.formatUnified(report));
+    });
+
+    it('sanitizes embedded newlines in summary text', () => {
+      const output = service.formatUnified(makeUnifiedReport({ summary: 'Line one\nLine two' }));
+      expect(output).toContain('Line one Line two');
+    });
+
+    it('does not throw when array fields are null at runtime', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const report = makeUnifiedReport({ risks: null as any, personalPulse: null as any });
+      expect(() => service.formatUnified(report)).not.toThrow();
     });
   });
 });
