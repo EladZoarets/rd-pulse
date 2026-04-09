@@ -168,11 +168,21 @@ export interface PersonalPulse {
   unassignedCount: number;
 }
 
+export type GitHubHighlightType = 'PR_MERGED' | 'PR_IN_REVIEW' | 'GHOST_WORK' | 'DIRECT_COMMIT';
+
+export interface GitHubHighlight {
+  type: GitHubHighlightType;
+  ref: string;        // e.g. "PR #42" or commit sha
+  author: string;
+  description: string;
+}
+
 export interface UnifiedReport {
   repo: string;
   boardId: string;
   generatedAt: Date;
   summary: string;
+  githubHighlights: GitHubHighlight[];
   topicBreakdown: TopicBreakdown[];
   risks: RiskItem[];
   personalPulse: PersonalPulse[];

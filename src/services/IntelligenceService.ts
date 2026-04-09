@@ -7,6 +7,7 @@ import {
   ContributorSummary,
   FeatureTheme,
   GitHubCommit,
+  GitHubHighlight,
   GitHubPR,
   JiraIssue,
   JiraSprintContext,
@@ -87,6 +88,17 @@ function isRiskItem(v: unknown): v is RiskItem {
     typeof obj.type === 'string' &&
     typeof obj.description === 'string' &&
     (obj.severity === 'high' || obj.severity === 'medium' || obj.severity === 'low')
+  );
+}
+
+function isGitHubHighlight(v: unknown): v is GitHubHighlight {
+  if (!v || typeof v !== 'object') return false;
+  const obj = v as Record<string, unknown>;
+  return (
+    typeof obj.type === 'string' &&
+    typeof obj.ref === 'string' &&
+    typeof obj.author === 'string' &&
+    typeof obj.description === 'string'
   );
 }
 
@@ -318,6 +330,9 @@ export class IntelligenceService {
       boardId: activity.jira.boardId,
       generatedAt: new Date(),
       summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+      githubHighlights: Array.isArray(parsed.githubHighlights)
+        ? parsed.githubHighlights.filter(isGitHubHighlight)
+        : [],
       topicBreakdown: Array.isArray(parsed.topicBreakdown)
         ? parsed.topicBreakdown.filter(isTopicBreakdown)
         : [],

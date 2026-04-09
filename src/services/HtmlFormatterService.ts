@@ -2,6 +2,7 @@ import {
   AnalysisResult,
   ContributorSummary,
   FeatureTheme,
+  GitHubHighlight,
   PersonalPulse,
   RiskItem,
   TopicBreakdown,
@@ -135,6 +136,33 @@ function renderManagersNote(note: string): string {
 }
 
 // ── Unified section renderers ─────────────────────────────────────────────────
+
+const TYPE_CLASS: Record<string, string> = {
+  PR_MERGED: 'tag-git',
+  PR_IN_REVIEW: 'tag-jira',
+  GHOST_WORK: 'badge-risk',
+  DIRECT_COMMIT: 'tag-slack',
+};
+
+function renderUnifiedGitHubHighlights(highlights: GitHubHighlight[]): string {
+  const items = highlights
+    .map(
+      (h) =>
+        `<div class="event-item">
+          <div class="event-meta">
+            <span class="source-tag ${TYPE_CLASS[h.type] ?? 'tag-git'}">${esc(h.type.replace('_', ' '))}</span>
+            <strong>${esc(h.ref)}</strong>
+            <span style="margin-left:.5rem;color:var(--text-muted)">${esc(h.author)}</span>
+          </div>
+          <p>${esc(h.description)}</p>
+        </div>`
+    )
+    .join('');
+  return `<section class="full-width">
+    <h2>GitHub Activity</h2>
+    ${items}
+  </section>`;
+}
 
 function renderUnifiedTopicBreakdown(topics: TopicBreakdown[]): string {
   const rows = topics
@@ -317,6 +345,7 @@ ${main}
 
   formatUnified(report: UnifiedReport): string {
     const repo = report.repo || '(unknown repo)';
+    const githubHighlights = report.githubHighlights ?? [];
     const topicBreakdown = report.topicBreakdown ?? [];
     const risks = report.risks ?? [];
     const personalPulse = report.personalPulse ?? [];
@@ -328,6 +357,9 @@ ${main}
     <h2>Summary</h2>
     <p>${esc(report.summary)}</p>
   </section>`);
+
+    if (githubHighlights.length > 0)
+      sections.push(renderUnifiedGitHubHighlights(githubHighlights));
 
     if (topicBreakdown.length > 0)
       sections.push(renderUnifiedTopicBreakdown(topicBreakdown));
