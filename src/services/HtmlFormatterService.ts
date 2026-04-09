@@ -1,4 +1,12 @@
-import { AnalysisResult, ContributorSummary, FeatureTheme } from '../types';
+import {
+  AnalysisResult,
+  ContributorSummary,
+  FeatureTheme,
+  PersonalPulse,
+  RiskItem,
+  TopicBreakdown,
+  UnifiedReport,
+} from '../types';
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -126,6 +134,67 @@ function renderManagersNote(note: string): string {
   </section>`;
 }
 
+// ── Unified section renderers ─────────────────────────────────────────────────
+
+function renderUnifiedTopicBreakdown(topics: TopicBreakdown[]): string {
+  const rows = topics
+    .map(
+      (t) => `<tr>
+          <td>${esc(t.topic)}</td>
+          <td>${t.totalIssues}</td>
+          <td>${t.doneCount}</td>
+          <td>${t.inProgressCount}</td>
+          <td>${t.todoCount}</td>
+          <td><strong>${t.completionPercent}%</strong></td>
+        </tr>`
+    )
+    .join('');
+  return `<section class="full-width">
+    <h2>Topic Breakdown</h2>
+    <table class="pulse-table">
+      <thead><tr><th>Topic</th><th>Total</th><th>Done</th><th>In Progress</th><th>To Do</th><th>Completion</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </section>`;
+}
+
+function renderUnifiedDangerZone(risks: RiskItem[]): string {
+  const items = risks
+    .map(
+      (r) =>
+        `<div class="risk-item unified-risk">
+          <span class="badge badge-${r.severity}">${esc(r.type)}</span>
+          <span>${esc(r.description)}</span>
+        </div>`
+    )
+    .join('');
+  return `<section class="full-width">
+    <h2>Danger Zone ⚠️</h2>
+    ${items}
+  </section>`;
+}
+
+function renderUnifiedPersonalPulse(pulse: PersonalPulse[]): string {
+  const rows = pulse
+    .map(
+      (p) => `<tr>
+          <td><strong>${esc(p.user)}</strong></td>
+          <td>${p.done}</td>
+          <td>${p.inProgress}</td>
+          <td>${p.inReview}</td>
+          <td>${p.unassignedCount}</td>
+        </tr>`
+    )
+    .join('');
+  return `<section class="full-width">
+    <h2>Personal Pulse</h2>
+    <table class="pulse-table">
+      <thead><tr><th>Person</th><th>Done</th><th>In Progress</th><th>In Review</th><th>Unassigned</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </section>`;
+}
+
 // ── CSS (verbatim from design) ────────────────────────────────────────────────
 
 const CSS = `
@@ -177,6 +246,14 @@ const CSS = `
   .risk-item:last-child { margin-bottom: 0; }
   aside { display: flex; flex-direction: column; gap: 1.5rem; }
   @media (max-width: 768px) { main { grid-template-columns: 1fr; } .grid-3 { grid-template-columns: 1fr; } }
+  .pulse-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .pulse-table th, .pulse-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+  .pulse-table th { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+  .pulse-table tbody tr:last-child td { border-bottom: none; }
+  .unified-risk { align-items: flex-start; gap: 0.75rem; margin-bottom: 0.75rem; }
+  .badge-high { background: #fee2e2; color: var(--danger); }
+  .badge-medium { background: #fef3c7; color: #92400e; }
+  .badge-low { background: #f0fdf4; color: #166534; }
 `.trim();
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -225,6 +302,58 @@ export class HtmlFormatterService {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>RD-Pulse — ${esc(repo)}</title>
+  <style>${CSS}</style>
+</head>`;
+
+    return `<!DOCTYPE html>
+<html lang="en">
+${head}
+<body>
+${header}
+${main}
+</body>
+</html>`;
+  }
+
+  formatUnified(report: UnifiedReport): string {
+    const repo = report.repo || '(unknown repo)';
+    const topicBreakdown = report.topicBreakdown ?? [];
+    const risks = report.risks ?? [];
+    const personalPulse = report.personalPulse ?? [];
+
+    const sections: string[] = [];
+
+    if (report.summary?.trim())
+      sections.push(`<section class="full-width">
+    <h2>Summary</h2>
+    <p>${esc(report.summary)}</p>
+  </section>`);
+
+    if (topicBreakdown.length > 0)
+      sections.push(renderUnifiedTopicBreakdown(topicBreakdown));
+
+    if (risks.length > 0)
+      sections.push(renderUnifiedDangerZone(risks));
+
+    if (personalPulse.length > 0)
+      sections.push(renderUnifiedPersonalPulse(personalPulse));
+
+    if (report.managersNote?.trim())
+      sections.push(renderManagersNote(report.managersNote));
+
+    const header = `<header>
+      <h1>SPRINT-PULSE / ${esc(repo.toUpperCase())} · Board ${esc(report.boardId)}</h1>
+      <p>Snapshot: ${esc(formatSnapshotDate(report.generatedAt))}</p>
+    </header>`;
+
+    const main = `<main style="display:block;max-width:1100px;margin:2rem auto;padding:0 1rem">
+      ${sections.join('\n      ')}
+    </main>`;
+
+    const head = `<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sprint Pulse — ${esc(repo)}</title>
   <style>${CSS}</style>
 </head>`;
 
