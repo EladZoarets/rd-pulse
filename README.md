@@ -6,11 +6,22 @@ Instead of context-switching between GitHub, Slack, and Jira, you get one struct
 
 ---
 
+## Commands
+
+rd-pulse has two commands:
+
+| Command | What it does |
+|---------|-------------|
+| `analyze` | GitHub-only daily digest (Stage 1) |
+| `pulse` | Unified GitHub + Jira sprint report with visual dashboard (Stage 2) |
+
+---
+
 ## What You Get
 
-Two output formats, one command.
+### `analyze` — GitHub Daily Digest
 
-**Markdown** (`--format md`, default) — prints to the terminal and saves to `DAILY_PULSE.md`:
+**Markdown** (`--format md`, default) — saves to `DAILY_PULSE.md`:
 
 ```
 # Daily Pulse — acme/backend
@@ -28,19 +39,33 @@ Strong week. Auth shipped and payments unblocked the mobile team...
 ### alice
 - **Merged:** 5 PRs · **Open:** 1 · **Commits:** 12
 - Merged PR #42: feat: OAuth2 login
-- Merged PR #43: fix: refresh token expiry
 
 ## Feature Themes / Key Achievements / Work in Progress / Risks & Blockers
 ...
 ```
 
-**HTML** (`--format html`) — saves a self-contained `DAILY_PULSE.html` you can open in any browser:
-
-- Two-column dashboard with stat cards (Critical Risks · Active Contributors · PRs Merged)
+**HTML** (`--format html`) — self-contained dashboard saved to `DAILY_PULSE.html`:
+- Stat cards: Critical Risks · Active Contributors · PRs Merged
 - Activity feed (achievements, feature themes, WIP, large PRs)
 - Critical Risks sidebar with ⚠️ items
-- Team Pulse sidebar with per-contributor cards and AT RISK badges
-- No external dependencies — one file, works offline
+- Team Pulse sidebar with per-contributor AT RISK badges
+
+---
+
+### `pulse` — Unified Sprint Dashboard
+
+Combines GitHub activity + Jira sprint data in one report. Saved to `PULSE_REPORT.md` or `PULSE_REPORT.html`.
+
+**HTML** (`--format html`) — visual manager dashboard:
+- **Health banner** — 🟢 ON TRACK / 🟡 NEEDS ATTENTION / 🔴 AT RISK based on sprint risks
+- **SVG donut chart** — done % with green/amber arcs and KPI strip (done · in progress · to do)
+- **Danger Zone cards** — colour-coded risk cards (red=high, amber=medium, green=low) with severity badges
+- **Personal Pulse** — per-developer mini bar charts (done/in-progress/in-review) with OVERLOADED and UNASSIGNED badges
+- **Topic Breakdown** — inline stacked progress bars per Jira epic/topic
+- **GitHub Activity** — styled timeline (✅ merged, 👁 in review, 👻 ghost work, ⚡ direct commit)
+- **Manager's Note** — LLM-generated summary at the bottom
+
+**Ghost Work detection** — PRs with no Jira ticket reference in branch name or title are flagged automatically.
 
 ---
 
@@ -52,6 +77,7 @@ Strong week. Auth shipped and payments unblocked the mobile team...
 - **npm** — bundled with Node.js
 - A GitHub account with access to the repo you want to analyse
 - An OpenAI account with GPT-4o access (paid plan)
+- A Jira account (for the `pulse` command)
 
 ### Steps
 
@@ -64,15 +90,13 @@ cd rd-pulse
 npm install
 ```
 
-That's it. No global install, no build step — run directly with `npx ts-node`.
+No global install, no build step — run directly with `npx ts-node`.
 
 ---
 
 ## Configuration
 
-There are three layers of configuration. You only need to touch the first one to get started.
-
-### Layer 1 — API Keys (required)
+### API Keys (required)
 
 Copy the example file and fill in your keys:
 
@@ -81,78 +105,98 @@ cp .env.example .env
 ```
 
 ```env
-# .env
+# GitHub + OpenAI (required for both commands)
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxx
+
+# Jira (required for the pulse command only)
+JIRA_DOMAIN=https://your-org.atlassian.net
+JIRA_EMAIL=you@yourcompany.com
+JIRA_TOKEN=your-jira-api-token
 ```
 
-**How to get your GitHub token:**
-1. Go to **GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)**
-2. Click **Generate new token (classic)**
-3. Name it `rd-pulse`, select the **`repo`** scope, click **Generate token**
-4. Copy the token — you won't see it again
+**GitHub token:** GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → `repo` scope.
 
-**How to get your OpenAI key:**
-1. Go to **https://platform.openai.com/api-keys**
-2. Click **Create new secret key**, name it `rd-pulse`, copy it
-3. Your account needs a paid plan for GPT-4o access
+**OpenAI key:** https://platform.openai.com/api-keys — requires a paid plan for GPT-4o.
+
+**Jira token:** https://id.atlassian.com/manage-profile/security/api-tokens → Create API token.
 
 ---
 
-### Layer 2 — LLM Prompt (optional, no code changes needed)
+### LLM Prompts (optional)
 
-The AI instructions live in `prompt.md` at the project root. Open and edit it freely:
+The AI instructions live in prompt files at the project root. Edit them freely:
 
-```bash
-open prompt.md   # macOS
-# or: code prompt.md / nano prompt.md
-```
+| File | Used by |
+|------|---------|
+| `prompt.md` | `analyze` command |
+| `prompt-unified.md` | `pulse` command |
 
-What you can change:
+What you can customise:
 - **Risk criteria** — e.g. flag PRs stale for >3 days instead of 7
-- **Team context** — add your team members' names so the LLM recognises them
+- **Team context** — add your team members' names
 - **Custom sections** — e.g. "highlight any PRs missing a Jira ticket link"
 - **Language** — translate the output to any language
 
-> The JSON schema block at the top of `prompt.md` must stay intact — it defines what the LLM returns.
+> The JSON schema block at the top of each prompt file must stay intact.
 
 ---
 
-### Layer 3 — CLI Flags (optional, per-run)
+### CLI Flags
 
-Pass flags when you run the command to override defaults for that run:
+#### `analyze` flags
 
 | Flag | Default | What it does |
 |------|---------|-------------|
 | `--owner` | *(required)* | GitHub organisation or username |
 | `--repo` | *(required)* | Repository name |
-| `--days` | `1` | How many days of history to fetch |
-| `--format` | `md` | Output format: `md` (Markdown) or `html` (dashboard) |
-| `--output` | `DAILY_PULSE.md` / `DAILY_PULSE.html` | Output file path |
-| `--model` | `gpt-4o` | OpenAI model to use |
-| `--big-pr-files` | `50` | Flag PRs with this many changed files or more |
-| `--big-pr-lines` | `500` | Flag PRs with this many changed lines or more |
+| `--days` | `1` | Days of history to fetch |
+| `--format` | `md` | `md` or `html` |
+| `--output` | `DAILY_PULSE.md/html` | Output file path |
+| `--model` | `gpt-4o` | OpenAI model |
+| `--big-pr-files` | `50` | Flag PRs with ≥N changed files |
+| `--big-pr-lines` | `500` | Flag PRs with ≥N changed lines |
+
+#### `pulse` flags
+
+| Flag | Default | What it does |
+|------|---------|-------------|
+| `--owner` | *(required)* | GitHub organisation or username |
+| `--repo` | *(required)* | Repository name |
+| `--board` | *(required)* | Jira board ID |
+| `--days` | `1` | Days of GitHub history to fetch |
+| `--format` | `md` | `md` or `html` |
+| `--output` | `PULSE_REPORT.md/html` | Output file path |
+| `--model` | `gpt-4o` | OpenAI model |
+| `--jira-fields` | *(default set)* | Comma-separated Jira fields to fetch |
+| `--jira-sp-field` | `story_points` | Custom story points field name |
 
 ---
 
 ## Running
 
 ```bash
-# Basic — last 24 hours, Markdown report
+# GitHub-only daily digest (Markdown)
 npx ts-node src/index.ts analyze --owner your-org --repo your-repo
 
-# HTML dashboard
+# GitHub-only HTML dashboard
 npx ts-node src/index.ts analyze --owner your-org --repo your-repo --format html
 open DAILY_PULSE.html
 
-# Last 7 days
-npx ts-node src/index.ts analyze --owner your-org --repo your-repo --days 7
+# Unified GitHub + Jira sprint report (Markdown)
+npx ts-node src/index.ts pulse --owner your-org --repo your-repo --board 42
 
-# Save to a specific file
-npx ts-node src/index.ts analyze --owner your-org --repo your-repo --output reports/monday.md
+# Unified HTML manager dashboard
+npx ts-node src/index.ts pulse --owner your-org --repo your-repo --board 42 --format html
+open PULSE_REPORT.html
 
-# Tighter large-PR threshold (flag PRs with ≥30 files or ≥300 lines)
-npx ts-node src/index.ts analyze --owner your-org --repo your-repo --big-pr-files 30 --big-pr-lines 300
+# Last 7 days, save to a custom path
+npx ts-node src/index.ts pulse --owner your-org --repo your-repo --board 42 --days 7 --output reports/sprint-12.html --format html
+
+# Custom Jira fields + story points field
+npx ts-node src/index.ts pulse --owner your-org --repo your-repo --board 42 \
+  --jira-fields summary,status,assignee,story_points \
+  --jira-sp-field customfield_10016
 ```
 
 ---
@@ -161,24 +205,24 @@ npx ts-node src/index.ts analyze --owner your-org --repo your-repo --big-pr-file
 
 ```
 rd-pulse/
-├── prompt.md                       # ← Edit to customise the LLM instructions
-├── .env                            # Your API keys (gitignored — never committed)
-├── .env.example                    # Template — copy to .env and fill in keys
-├── DAILY_PULSE.md                  # Generated Markdown report (gitignored)
-├── DAILY_PULSE.html                # Generated HTML report (gitignored)
+├── prompt.md                       # LLM instructions for analyze command
+├── prompt-unified.md               # LLM instructions for pulse command
+├── .env                            # Your API keys (gitignored)
+├── .env.example                    # Template — copy to .env and fill in
+├── DAILY_PULSE.md/html             # Generated analyze reports (gitignored)
+├── PULSE_REPORT.md/html            # Generated pulse reports (gitignored)
 └── src/
-    ├── index.ts                    # CLI entry point
-    ├── types.ts                    # Shared TypeScript interfaces
+    ├── index.ts                    # CLI entry — analyze + pulse commands
+    ├── types.ts                    # All shared TypeScript interfaces
     ├── services/
-    │   ├── GitHubService.ts        # Fetches PRs, commits, comments via Octokit
-    │   ├── IntelligenceService.ts  # Builds prompt, calls OpenAI, parses response
-    │   ├── FormatterService.ts     # Renders AnalysisResult → Markdown
-    │   ├── HtmlFormatterService.ts # Renders AnalysisResult → self-contained HTML dashboard
-    │   ├── SlackService.ts         # Stage 2 — Slack messages and threads
-    │   └── JiraService.ts          # Stage 2 — Jira ticket activity
+    │   ├── GitHubService.ts        # GitHub API — PRs, commits, ghost work detection
+    │   ├── JiraService.ts          # Jira Agile API — sprint context, issue buckets
+    │   ├── IntelligenceService.ts  # OpenAI — analyze() + analyzeUnified()
+    │   ├── FormatterService.ts     # Markdown renderer — format() + formatUnified()
+    │   └── HtmlFormatterService.ts # HTML dashboard renderer — format() + formatUnified()
     └── utils/
         ├── logger.ts               # ASCII header, progress logs, fatal error handler
-        └── tokenCounter.ts         # Token budget utilities
+        └── tokenCounter.ts         # Token budget enforcement, tiered trimming
 ```
 
 ---
@@ -186,30 +230,45 @@ rd-pulse/
 ## Roadmap
 
 ### Stage 1 — GitHub Daily Digest ✅
-- [x] Project scaffold and type definitions
-- [x] GitHubService — fetch PRs, commits, comments (pagination + rate limit handling)
-- [x] IntelligenceService — LLM analysis with context window management
-- [x] FormatterService — structured Markdown with per-contributor progress and risk flags
-- [x] HtmlFormatterService — self-contained HTML dashboard (two-column grid, stat cards, AT RISK badges)
-- [x] Large PR detection — configurable file and line thresholds (`--big-pr-files`, `--big-pr-lines`)
-- [x] CLI — `analyze` command with `--format md|html` and full error handling
+- [x] GitHubService — PRs, commits, large PR detection, ghost work flagging
+- [x] IntelligenceService — LLM analysis with token budget management
+- [x] FormatterService — Markdown with per-contributor progress and risk flags
+- [x] HtmlFormatterService — self-contained HTML dashboard
+- [x] CLI — `analyze` command with `--format md|html`
 
-### Stage 2 — Full Daily Email Digest *(planned)*
-- [ ] SlackService — fetch messages and threads from relevant channels
-- [ ] JiraService — fetch ticket activity (status changes, comments, assignments)
+### Stage 2 — Unified GitHub + Jira Sprint Report ✅
+- [x] JiraService — active sprint, issue status buckets, story points, custom fields
+- [x] Ghost work detection — PRs with no Jira ticket reference auto-flagged
+- [x] IntelligenceService — `analyzeUnified()` combining GitHub + Jira signals
+- [x] FormatterService — `formatUnified()` with Summary, Topic Breakdown, Danger Zone, Personal Pulse
+- [x] HtmlFormatterService — visual manager dashboard with donut chart, risk cards, pulse bars
+- [x] CLI — `pulse` command with `--board`, `--jira-fields`, `--jira-sp-field`
+
+### Stage 3 — Full Daily Email Digest *(planned)*
+- [ ] Slack integration — fetch messages and threads from relevant channels
 - [ ] Cross-source correlation — link PRs ↔ Jira tickets ↔ Slack threads
-- [ ] Unified LLM synthesis — GitHub + Slack + Jira in one report
 - [ ] Email delivery — daily digest via SMTP or SendGrid
-- [ ] Scheduling — cron job or external trigger
+- [ ] Scheduling — cron job or external trigger for automated daily runs
+
+### Stage 4 — AI Assist Tracking *(planned)*
+> Track how much AI tooling (Copilot, Cursor, Claude, etc.) each developer uses via a lightweight PR-label convention that works for any tool.
+- [ ] `AiAssistStat` types + `ai-assisted` PR label detection in GitHubService
+- [ ] AI assist stats surfaced in unified LLM prompt and report
+- [ ] Markdown + HTML AI Assist section (per-developer adoption rate)
+- [ ] PR template helper script — drops `.github/pull_request_template.md` with AI-assisted checkbox
 
 ---
 
 ## Troubleshooting
 
-**`401 Incorrect API key`** — Your `OPENAI_API_KEY` in `.env` is wrong or still the placeholder. Check it at https://platform.openai.com/api-keys.
+**`401 Incorrect API key`** — Your `OPENAI_API_KEY` in `.env` is wrong. Check it at https://platform.openai.com/api-keys.
 
-**`429 Request too large`** — Your OpenAI tier has a low TPM limit. The tool automatically trims the prompt, but very active repos on free-tier accounts may still hit limits. Try `--days 1` (the default) or upgrade your OpenAI plan.
+**`429 Request too large`** — Your OpenAI tier has a low TPM limit. The tool trims the prompt automatically, but try `--days 1` or upgrade your plan.
 
-**`Bad credentials` from GitHub** — Your `GITHUB_TOKEN` is expired or missing the `repo` scope. Regenerate it at https://github.com/settings/tokens.
+**`Bad credentials` from GitHub** — Your `GITHUB_TOKEN` is expired or missing the `repo` scope. Regenerate at https://github.com/settings/tokens.
 
-**`System prompt file not found`** — `prompt.md` is missing from the project root. Run `git checkout prompt.md` to restore the default.
+**`System prompt file not found`** — `prompt.md` or `prompt-unified.md` is missing. Run `git checkout prompt.md prompt-unified.md` to restore.
+
+**Jira `401 Unauthorized`** — Check `JIRA_EMAIL` and `JIRA_TOKEN` in `.env`. The token is your Atlassian API token, not your password.
+
+**Jira `No active sprint found`** — The board has no active sprint. Start a sprint in Jira first, or check your `--board` ID is correct.
