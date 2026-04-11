@@ -221,17 +221,76 @@ interface AnalysisInput {
 
 ### Endpoints
 
+#### `POST /workspaces`
+
+Creates a new workspace. Called from the web app during self-serve setup.
+
+**Auth:** None required at creation time (user-facing web flow).
+
+**Request body:**
+
+```json
+{
+  "name": "string"
+}
+```
+
+**Response `201`:**
+
+```json
+{
+  "workspaceId": "uuid",
+  "name": "string",
+  "status": "pending_connection"
+}
+```
+
+The workspace starts in `pending_connection` state. It transitions to `active` on first valid connector heartbeat.
+
+---
+
+#### `POST /workspaces/:id/heartbeat`
+
+Called by the connector on startup to signal it is live. Transitions workspace from `pending_connection` to `active` on first successful call.
+
+**Auth:** workspace license JWT in `Authorization: Bearer <token>` header
+
+**Response `200`:**
+
+```json
+{
+  "workspaceId": "uuid",
+  "status": "active"
+}
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| `401` | Missing or invalid JWT |
+| `404` | Workspace not found |
+
+---
+
 #### `POST /ingest/report`
 
 Receives a processed report from the connector.
 
 **Auth:** workspace license JWT in `Authorization: Bearer <token>` header
 
+**Upsert behavior:** This endpoint is idempotent via a composite key of `workspaceId + reportType + windowStart + windowEnd`. If a report already exists for that key, the existing record is updated and `lastSyncedAt` is refreshed; `runCount` is incremented. If no matching record exists, a new report is created. This ensures the UI always shows one canonical report per analysis window while preventing duplicate entries from repeated connector runs.
+
+**Optional audit trail:** An optional `report_runs` table may be maintained to record every individual connector invocation for audit history. This table is internal and not exposed through the public API — the UI always reads from the canonical report record.
+
 **Request body:**
 
 ```json
 {
   "workspaceId": "string",
+  "reportType": "string",
+  "windowStart": "ISO 8601",
+  "windowEnd": "ISO 8601",
   "generatedAt": "ISO 8601",
   "summary": { "health": "string", "headline": "string" },
   "risks": [],
@@ -280,9 +339,9 @@ Returns a paginated list of reports for a workspace.
 
 #### `GET /reports/:id`
 
-Returns the full report detail.
+Returns the full report detail. `:id` is always a UUID — slugs are never used as lookup keys.
 
-**Response `200`:** Full report object — same shape as ingest body, plus `id` and `url`.
+**Response `200`:** Full report object — same shape as ingest body, plus `id`, `slug` (if present), and `url`.
 
 **Auth:** None required. This endpoint is publicly accessible for any valid report ID. Reports are safe to share by design.
 
@@ -296,6 +355,11 @@ Returns the full report detail.
 | `summary`, `risks`, `insights` | Raw GitHub data |
 | `generatedAt`, report metadata | Credentials of any kind |
 | `health`, `headline` | Code content or diffs |
+| `id: uuid` (canonical identifier) | |
+| `slug?: string` (optional, display-only) | |
+| `lastSyncedAt` (updated on each upsert) | |
+| `runCount` (incremented on each upsert) | |
+| `reportType`, `windowStart`, `windowEnd` (composite key fields) | |
 
 ---
 
@@ -305,10 +369,18 @@ Returns the full report detail.
 
 #### Page 1 — Setup (`/setup`)
 
-- Create or view workspace (name, ID)
-- Display the connector install command pre-filled with workspace ID and server URL
-- Show connection status: last report time, health badge
-- Show license status and expiry
+Self-serve workspace provisioning flow:
+
+1. User enters a workspace name and submits the creation form
+2. Backend responds immediately with a `workspaceId` (UUID) and `status: "pending_connection"`
+3. The page displays the connector install command pre-filled with the `workspaceId` and server URL
+4. User installs and starts the connector; the connector calls `POST /workspaces/:id/heartbeat` on startup
+5. On first valid heartbeat the workspace transitions to `active` and the page reflects the updated status automatically
+
+Additional elements on this page:
+
+- Connection status indicator: `pending_connection` or `active`, last report time, health badge
+- License status and expiry
 
 #### Page 2 — Reports List (`/workspaces/:id/reports`)
 
@@ -375,10 +447,12 @@ Every risk and insight item must include at minimum:
 ### URL Scheme
 
 ```
-https://app.rdpulse.ai/report/{reportId}
+https://app.rdpulse.ai/report/{uuid}
 ```
 
-`reportId` is a UUID assigned at ingest time. There is no auth wall on this route.
+`report.id` is a UUID assigned at ingest time and is the canonical identifier for all API operations (fetch, update, delete). There is no auth wall on this route.
+
+`report.slug` (e.g. `weekly-2026-04-11`) is an optional human-readable label for display purposes only. Slugs may appear in the UI as labels but are never used as lookup keys in any API call. The shareable URL always uses the UUID.
 
 ### Data Safety
 
@@ -455,11 +529,8 @@ The following decisions are unresolved and must be made before implementation be
 |---|----------|--------|
 | 1 | What is the report retention policy? How long are reports stored before deletion? | Storage costs, compliance, user expectations |
 | 2 | Is the Free tier fully local (connector only, no backend involved), or does it POST to the backend with a restricted plan? | Backend architecture, auth flow |
-| 3 | How is a workspace ID first issued? Is there a registration step via the web app before the connector can POST, or does the backend auto-create on first ingest? | Setup UX, security model |
 | 4 | What authentication protects `GET /workspaces/:id/reports`? If reports are public by URL, should the list endpoint still require the workspace JWT? | Access control |
 | 5 | After license expiry, what exactly is the "reduced insight set"? Is it defined by count (e.g. top 1 risk only), by type, or by a flag in the AI response? | Backend logic, frontend rendering |
 | 6 | For `OllamaProvider`, what is the minimum required model capability and the supported model name (e.g. `llama3`, `mistral`)? | Connector reliability, documentation |
-| 7 | Are workspace IDs user-chosen (e.g. `acme-rd`) or system-generated UUIDs? User-chosen IDs risk collision and enumeration attacks on the list endpoint. | Security, onboarding |
 | 8 | What is the connector's behavior if the backend is unreachable — silent fail, retry with backoff, or local fallback output? | Reliability, UX |
-| 9 | Should `POST /ingest/report` be idempotent? If the connector runs twice in the same day, does it create two reports or overwrite the most recent? | Data model, UX |
 | 10 | Who owns the AI prompt — is it bundled in the connector (customer controls it) or fetched from the backend (platform controls it)? | Security model, ability to iterate on prompt quality post-deploy |
