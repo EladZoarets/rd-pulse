@@ -1,6 +1,8 @@
 {
   "name": "rd-pulse",
   "version": "0.1.0",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"],
   "description": "AI-powered R&D intelligence agent that transforms GitHub activity into actionable daily digests",
   "main": "dist/index.js",
   "bin": {
