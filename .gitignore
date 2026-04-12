@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+.env.local
 DAILY_PULSE.md
 DAILY_PULSE.html
 PULSE_REPORT.md

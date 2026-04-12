@@ -10,7 +10,8 @@
     "skipLibCheck": true,
     "paths": {
       "@rdpulse/types": ["../../packages/types/src/index.ts"]
-    }
+    },
+    "types": ["vite/client"]
   },
   "include": ["src"]
 }
