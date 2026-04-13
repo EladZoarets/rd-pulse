@@ -17,7 +17,7 @@ function renderWithProviders(initialPath: string) {
 describe('App routing', () => {
   it('renders setup page at /setup', () => {
     renderWithProviders('/setup')
-    expect(screen.getByTestId('page-setup')).toBeInTheDocument()
+    expect(screen.getByTestId('setup-form')).toBeInTheDocument()
   })
 
   it('renders reports page at /reports', () => {
@@ -27,11 +27,12 @@ describe('App routing', () => {
 
   it('renders report page at /report/:id', () => {
     renderWithProviders('/report/abc-123')
-    expect(screen.getByTestId('page-report')).toBeInTheDocument()
+    // ReportPage renders loading state while the async query is in flight
+    expect(screen.getByTestId('report-loading')).toBeInTheDocument()
   })
 
   it('redirects / to /setup', () => {
     renderWithProviders('/')
-    expect(screen.getByTestId('page-setup')).toBeInTheDocument()
+    expect(screen.getByTestId('setup-form')).toBeInTheDocument()
   })
 })

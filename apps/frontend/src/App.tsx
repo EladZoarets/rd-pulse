@@ -1,23 +1,17 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-
-function SetupPlaceholder() {
-  return <div data-testid="page-setup">Setup Page (coming soon)</div>
-}
+import { ReportPage } from './pages/ReportPage'
+import { SetupPage } from './pages/SetupPage'
 
 function ReportsPlaceholder() {
   return <div data-testid="page-reports">Reports Page (coming soon)</div>
 }
 
-function ReportPlaceholder() {
-  return <div data-testid="page-report">Report Page (coming soon)</div>
-}
-
 export default function App() {
   return (
     <Routes>
-      <Route path="/setup" element={<SetupPlaceholder />} />
+      <Route path="/setup" element={<SetupPage />} />
       <Route path="/reports" element={<ReportsPlaceholder />} />
-      <Route path="/report/:id" element={<ReportPlaceholder />} />
+      <Route path="/report/:id" element={<ReportPage />} />
       <Route path="/" element={<Navigate to="/setup" replace />} />
     </Routes>
   )
