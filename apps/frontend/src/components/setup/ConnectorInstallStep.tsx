@@ -80,7 +80,11 @@ JIRA_DOMAIN=https://your-org.atlassian.net
 JIRA_EMAIL=you@yourcompany.com
 JIRA_TOKEN=...`
 
-  const runCommand = `npx rdpulse-connector pulse --owner YOUR_ORG --repo YOUR_REPO --board YOUR_BOARD_ID`
+  const runCommand = `# Replace with your values
+npx rdpulse-connector pulse --owner acme-inc --repo backend --board 42
+
+# Example with more options
+npx rdpulse-connector pulse --owner acme-inc --repo backend --board 42 --days 7 --format html`
 
   return (
     <div className="space-y-8">
