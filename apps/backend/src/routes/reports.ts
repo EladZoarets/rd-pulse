@@ -60,6 +60,24 @@ router.post('/ingest/report', verifyJwt, async (req: Request, res: Response): Pr
   }
 })
 
+// GET /api/v1/reports?workspaceId=...  (public, no auth)
+router.get('/reports', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : null
+    if (!workspaceId) {
+      res.status(400).json({ error: 'workspaceId query param is required' })
+      return
+    }
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined
+    const { WorkspaceService } = await import('../services/WorkspaceService')
+    const result = await new WorkspaceService().getReports(workspaceId, cursor)
+    res.status(200).json(result)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Internal server error'
+    res.status(500).json({ error: message })
+  }
+})
+
 // GET /api/v1/reports/:id  (public, no auth)
 router.get('/reports/:id', async (req: Request, res: Response): Promise<void> => {
   try {
