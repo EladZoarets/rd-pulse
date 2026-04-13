@@ -13,8 +13,8 @@
 - [x] Task 6 — Backend: Express entry point, route mounting, integration smoke test (create → heartbeat → ingest → fetch)
 
 ### Connector
-- [ ] Task 7 — `ReportSenderService.ts`: `sendHeartbeat()` on startup + `sendReport()` after analysis; unit tests; add `RDPULSE_SERVER`, `WORKSPACE_ID`, `RDPULSE_JWT` to `.env.example`
-- [ ] Task 8 — Wire `ReportSenderService` into `src/index.ts` pipeline; existing 199 tests must still pass
+- [x] Task 7 — `ReportSenderService.ts`: `sendHeartbeat()` on startup + `sendReport()` after analysis; unit tests; add `RDPULSE_SERVER`, `WORKSPACE_ID`, `RDPULSE_JWT` to `.env.example`
+- [x] Task 8 — Wire `ReportSenderService` into `src/index.ts` pipeline; existing 199 tests must still pass
 
 ### Frontend
 - [x] Task 9 — `/setup` page: workspace creation form, pre-filled connector install command, status polling until heartbeat activates workspace
