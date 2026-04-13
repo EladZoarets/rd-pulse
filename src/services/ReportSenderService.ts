@@ -44,7 +44,7 @@ export class ReportSenderService {
   }
 
   async sendHeartbeat(): Promise<void> {
-    const url = `${this.serverUrl}/workspaces/${this.workspaceId}/heartbeat`;
+    const url = `${this.serverUrl}/api/v1/workspaces/${this.workspaceId}/heartbeat`;
     let response: Response;
 
     try {
@@ -69,7 +69,7 @@ export class ReportSenderService {
   }
 
   async sendReport(payload: ReportPayload): Promise<void> {
-    const url = `${this.serverUrl}/ingest/report`;
+    const url = `${this.serverUrl}/api/v1/ingest/report`;
     let response: Response;
 
     try {
