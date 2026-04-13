@@ -1,8 +1,10 @@
 {
-  "name": "rd-pulse",
+  "name": "rdpulse-connector",
   "version": "0.1.0",
-  "private": true,
+  "description": "AI-powered R&D intelligence connector — ships GitHub + Jira activity to the rd-pulse dashboard",
   "workspaces": ["packages/*", "apps/*"],
+  "files": ["dist/", "prompt.md", "prompt-unified.md"],
+  "engines": { "node": ">=18" },
   "description": "AI-powered R&D intelligence agent that transforms GitHub activity into actionable daily digests",
   "main": "dist/index.js",
   "bin": {
