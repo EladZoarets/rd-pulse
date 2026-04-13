@@ -24,6 +24,26 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
   }
 })
 
+// GET /api/v1/workspaces/:id/status
+router.get('/:id/status', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params
+    const workspace = await getService().findById(id)
+    if (!workspace) {
+      res.status(404).json({ error: 'Workspace not found' })
+      return
+    }
+    res.status(200).json({
+      workspaceId: id,
+      status: workspace.status,
+      lastHeartbeatAt: workspace.last_heartbeat_at,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Internal server error'
+    res.status(500).json({ error: message })
+  }
+})
+
 // POST /api/v1/workspaces/:id/heartbeat
 router.post('/:id/heartbeat', verifyJwt, async (req: Request, res: Response): Promise<void> => {
   try {
