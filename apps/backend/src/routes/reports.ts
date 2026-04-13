@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express'
 import { z } from 'zod'
 import { verifyJwt } from '../middleware/auth'
 import { ReportService } from '../services/ReportService'
-import type { IngestPayload } from '@rdpulse/types'
+import type { IngestPayload } from '../types'
 
 const router = Router()
 

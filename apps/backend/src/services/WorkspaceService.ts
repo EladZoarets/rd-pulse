@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 import { supabase } from '../db/supabase'
-import type { WorkspaceCreateResponse, ReportListResponse, ReportListItem } from '@rdpulse/types'
+import type { WorkspaceCreateResponse, ReportListResponse, ReportListItem } from '../types'
 
 export interface WorkspaceRow {
   id: string

@@ -1,5 +1,5 @@
 import { supabase } from '../db/supabase'
-import type { IngestPayload, ReportDetail } from '@rdpulse/types'
+import type { IngestPayload, ReportDetail } from '../types'
 
 interface ReportRow {
   id: string
