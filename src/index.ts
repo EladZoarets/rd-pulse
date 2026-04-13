@@ -1,12 +1,13 @@
 import { Command } from 'commander';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
-import { AnalyzeOptions, JiraFetchOptions, PulseOptions } from './types';
+import { AnalyzeOptions, JiraFetchOptions, PulseOptions, UnifiedReport, ActivityContext } from './types';
 import { GitHubService, DEFAULT_BIG_PR_THRESHOLDS } from './services/GitHubService';
 import { JiraService } from './services/JiraService';
 import { IntelligenceService } from './services/IntelligenceService';
 import { FormatterService } from './services/FormatterService';
 import { HtmlFormatterService } from './services/HtmlFormatterService';
+import { ReportSenderService, ReportPayload } from './services/ReportSenderService';
 import { printHeader, log, handleFatalError } from './utils/logger';
 
 dotenv.config();
@@ -84,6 +85,43 @@ program
     }
   });
 
+// ── IngestPayload builder ─────────────────────────────────────────────────────
+
+export function buildIngestPayload(
+  report: UnifiedReport,
+  githubCtx: ActivityContext,
+  workspaceId: string
+): ReportPayload {
+  const hasHighSeverity = report.risks.some((r) => r.severity === 'high');
+  const hasSprintJeopardy = report.risks.some(
+    (r) => r.type === 'SPRINT_JEOPARDY' && r.severity === 'high'
+  );
+  const health = hasSprintJeopardy ? 'critical' : hasHighSeverity ? 'at_risk' : 'good';
+
+  return {
+    workspaceId,
+    reportType: 'unified_sprint',
+    windowStart: githubCtx.windowStart.toISOString(),
+    windowEnd: githubCtx.windowEnd.toISOString(),
+    generatedAt: report.generatedAt.toISOString(),
+    summary: {
+      health,
+      headline: report.summary,
+    },
+    risks: report.risks.map((r) => ({
+      type: r.type.toLowerCase(),
+      severity: r.severity,
+      title: r.description.split('.')[0].trim(),
+      description: r.description,
+      links: [],
+    })),
+    insights: report.githubHighlights.map((h) => ({
+      type: h.type.toLowerCase(),
+      description: h.description,
+    })),
+  };
+}
+
 // ── pulse command ─────────────────────────────────────────────────────────────
 
 export async function runPulse(opts: PulseOptions, env: NodeJS.ProcessEnv): Promise<void> {
@@ -114,7 +152,23 @@ export async function runPulse(opts: PulseOptions, env: NodeJS.ProcessEnv): Prom
   if (opts.jiraFields) jiraOptions.fields = opts.jiraFields.split(',').map((f) => f.trim());
   if (opts.jiraSpField) jiraOptions.storyPointsField = opts.jiraSpField;
 
+  const rdpulseServer = env.RDPULSE_SERVER;
+  const workspaceId = env.WORKSPACE_ID;
+  const rdpulseJwt = env.RDPULSE_JWT;
+  const sender = rdpulseServer && workspaceId && rdpulseJwt
+    ? new ReportSenderService(rdpulseServer, workspaceId, rdpulseJwt)
+    : null;
+
   try {
+    if (sender) {
+      try {
+        await sender.sendHeartbeat();
+        log('Heartbeat sent to rd-pulse server');
+      } catch (err) {
+        log(`Warning: heartbeat failed — ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     log(`Fetching ${days}d of GitHub activity for ${opts.owner}/${opts.repo}…`);
     const github = new GitHubService(githubToken!);
     const githubCtx = await github.fetchActivity(opts.owner, opts.repo, days, DEFAULT_BIG_PR_THRESHOLDS);
@@ -129,6 +183,16 @@ export async function runPulse(opts: PulseOptions, env: NodeJS.ProcessEnv): Prom
     const intelligence = new IntelligenceService(openaiKey!, opts.model);
     const report = await intelligence.analyzeUnified({ github: githubCtx, jira: jiraCtx });
     log(`Analysis complete — ${report.risks.length} risks, ${report.topicBreakdown.length} topics`);
+
+    if (sender) {
+      try {
+        const payload = buildIngestPayload(report, githubCtx, workspaceId!);
+        await sender.sendReport(payload);
+        log('Report sent to rd-pulse server');
+      } catch (err) {
+        log(`Warning: sendReport failed — ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
 
     log(`Formatting report as ${fmt.toUpperCase()}…`);
     const output =
