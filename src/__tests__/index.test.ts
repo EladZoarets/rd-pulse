@@ -15,6 +15,9 @@ jest.mock('../services/FormatterService', () => ({
 jest.mock('../services/HtmlFormatterService', () => ({
   HtmlFormatterService: jest.fn(),
 }));
+jest.mock('../services/ReportSenderService', () => ({
+  ReportSenderService: jest.fn(),
+}));
 jest.mock('fs', () => ({ writeFileSync: jest.fn() }));
 jest.mock('../utils/logger', () => ({
   printHeader: jest.fn(),
@@ -23,12 +26,13 @@ jest.mock('../utils/logger', () => ({
 }));
 
 import * as fs from 'fs';
-import { runPulse } from '../index';
+import { runPulse, buildIngestPayload } from '../index';
 import { GitHubService } from '../services/GitHubService';
 import { JiraService } from '../services/JiraService';
 import { IntelligenceService } from '../services/IntelligenceService';
 import { FormatterService } from '../services/FormatterService';
 import { HtmlFormatterService } from '../services/HtmlFormatterService';
+import { ReportSenderService } from '../services/ReportSenderService';
 import { handleFatalError } from '../utils/logger';
 import { PulseOptions } from '../types';
 
@@ -39,6 +43,7 @@ const MockJiraService = JiraService as jest.MockedClass<typeof JiraService>;
 const MockIntelligenceService = IntelligenceService as jest.MockedClass<typeof IntelligenceService>;
 const MockFormatterService = FormatterService as jest.MockedClass<typeof FormatterService>;
 const MockHtmlFormatterService = HtmlFormatterService as jest.MockedClass<typeof HtmlFormatterService>;
+const MockReportSenderService = ReportSenderService as jest.MockedClass<typeof ReportSenderService>;
 const mockWriteFileSync = fs.writeFileSync as jest.Mock;
 const mockHandleFatalError = handleFatalError as unknown as jest.Mock;
 
@@ -50,6 +55,13 @@ const VALID_ENV: NodeJS.ProcessEnv = {
   JIRA_DOMAIN: 'https://acme.atlassian.net',
   JIRA_EMAIL: 'dev@acme.com',
   JIRA_TOKEN: 'jira-token-test',
+};
+
+const SENDER_ENV: NodeJS.ProcessEnv = {
+  ...VALID_ENV,
+  RDPULSE_SERVER: 'https://api.rdpulse.io',
+  WORKSPACE_ID: 'ws-001',
+  RDPULSE_JWT: 'jwt-test',
 };
 
 const makeOpts = (overrides: Partial<PulseOptions> = {}): PulseOptions => ({
@@ -89,6 +101,8 @@ describe('runPulse()', () => {
   let mockAnalyzeUnified: jest.Mock;
   let mockFormatUnified: jest.Mock;
   let mockHtmlFormatUnified: jest.Mock;
+  let mockSendHeartbeat: jest.Mock;
+  let mockSendReport: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -103,12 +117,18 @@ describe('runPulse()', () => {
     mockAnalyzeUnified = jest.fn().mockResolvedValue(FAKE_REPORT);
     mockFormatUnified = jest.fn().mockReturnValue('# Pulse Report');
     mockHtmlFormatUnified = jest.fn().mockReturnValue('<html>report</html>');
+    mockSendHeartbeat = jest.fn().mockResolvedValue(undefined);
+    mockSendReport = jest.fn().mockResolvedValue(undefined);
 
     MockGitHubService.mockImplementation(() => ({ fetchActivity: mockFetchActivity } as unknown as GitHubService));
     MockJiraService.mockImplementation(() => ({ fetchSprintContext: mockFetchSprintContext } as unknown as JiraService));
     MockIntelligenceService.mockImplementation(() => ({ analyzeUnified: mockAnalyzeUnified } as unknown as IntelligenceService));
     MockFormatterService.mockImplementation(() => ({ formatUnified: mockFormatUnified } as unknown as FormatterService));
     MockHtmlFormatterService.mockImplementation(() => ({ formatUnified: mockHtmlFormatUnified } as unknown as HtmlFormatterService));
+    MockReportSenderService.mockImplementation(() => ({
+      sendHeartbeat: mockSendHeartbeat,
+      sendReport: mockSendReport,
+    } as unknown as ReportSenderService));
   });
 
   // ── Env validation ────────────────────────────────────────────────────────
@@ -229,5 +249,130 @@ describe('runPulse()', () => {
     mockFetchActivity.mockRejectedValueOnce(new Error('GitHub API down'));
     await expect(runPulse(makeOpts(), VALID_ENV)).rejects.toThrow('GitHub API down');
     expect(mockHandleFatalError).toHaveBeenCalledWith(expect.any(Error), 'pulse');
+  });
+
+  // ── ReportSenderService wiring ────────────────────────────────────────────
+
+  it('does not create ReportSenderService when sender env vars are absent', async () => {
+    await runPulse(makeOpts(), VALID_ENV);
+    expect(MockReportSenderService).not.toHaveBeenCalled();
+  });
+
+  it('creates ReportSenderService and calls sendHeartbeat when sender env vars are present', async () => {
+    await runPulse(makeOpts(), SENDER_ENV);
+    expect(MockReportSenderService).toHaveBeenCalledWith(
+      'https://api.rdpulse.io', 'ws-001', 'jwt-test'
+    );
+    expect(mockSendHeartbeat).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls sendReport after analysis when sender env vars are present', async () => {
+    await runPulse(makeOpts(), SENDER_ENV);
+    expect(mockSendReport).toHaveBeenCalledTimes(1);
+    const payload = mockSendReport.mock.calls[0][0];
+    expect(payload.workspaceId).toBe('ws-001');
+    expect(payload.reportType).toBe('unified_sprint');
+    expect(['good', 'at_risk', 'critical']).toContain(payload.summary.health);
+  });
+
+  it('sendHeartbeat is called before fetchActivity', async () => {
+    const order: string[] = [];
+    mockSendHeartbeat.mockImplementation(async () => { order.push('heartbeat'); });
+    mockFetchActivity.mockImplementation(async () => { order.push('fetchActivity'); return FAKE_GITHUB_CTX; });
+    await runPulse(makeOpts(), SENDER_ENV);
+    expect(order.indexOf('heartbeat')).toBeLessThan(order.indexOf('fetchActivity'));
+  });
+
+  it('pipeline continues and writes file even when sendHeartbeat fails', async () => {
+    mockSendHeartbeat.mockRejectedValueOnce(new Error('server down'));
+    await runPulse(makeOpts(), SENDER_ENV);
+    expect(mockWriteFileSync).toHaveBeenCalled();
+  });
+
+  it('pipeline continues and writes file even when sendReport fails', async () => {
+    mockSendReport.mockRejectedValueOnce(new Error('ingest error'));
+    await runPulse(makeOpts(), SENDER_ENV);
+    expect(mockWriteFileSync).toHaveBeenCalled();
+  });
+});
+
+// ── buildIngestPayload ─────────────────────────────────────────────────────────
+
+describe('buildIngestPayload()', () => {
+  const baseGithubCtx = {
+    ...{
+      owner: 'acme', repo: 'backend', defaultBranch: 'main',
+      windowStart: new Date('2026-04-06T00:00:00Z'),
+      windowEnd: new Date('2026-04-12T23:59:59Z'),
+      pullRequests: [], commits: [], stalePRs: [], heatedPRs: [],
+      directCommits: [], bigPRs: [], bigPRThresholds: { files: 50, lines: 500 },
+      ghostWorkPRs: [],
+    },
+  };
+
+  const baseReport = {
+    repo: 'acme/backend', boardId: '42',
+    generatedAt: new Date('2026-04-13T10:00:00Z'),
+    summary: 'Sprint on track.',
+    githubHighlights: [], topicBreakdown: [], risks: [], personalPulse: [],
+    managersNote: 'Good.', rawLLMResponse: '{}',
+  };
+
+  it('sets workspaceId, reportType, windowStart, windowEnd, generatedAt correctly', () => {
+    const payload = buildIngestPayload(baseReport, baseGithubCtx, 'ws-001');
+    expect(payload.workspaceId).toBe('ws-001');
+    expect(payload.reportType).toBe('unified_sprint');
+    expect(payload.windowStart).toBe('2026-04-06T00:00:00.000Z');
+    expect(payload.windowEnd).toBe('2026-04-12T23:59:59.000Z');
+    expect(payload.generatedAt).toBe('2026-04-13T10:00:00.000Z');
+  });
+
+  it('derives health=good when no risks', () => {
+    const payload = buildIngestPayload({ ...baseReport, risks: [] }, baseGithubCtx, 'ws-001');
+    expect(payload.summary.health).toBe('good');
+  });
+
+  it('derives health=at_risk when there is a high severity risk', () => {
+    const report = {
+      ...baseReport,
+      risks: [{ type: 'STALL' as const, severity: 'high' as const, description: 'Stalled.' }],
+    };
+    const payload = buildIngestPayload(report, baseGithubCtx, 'ws-001');
+    expect(payload.summary.health).toBe('at_risk');
+  });
+
+  it('derives health=critical when there is a high severity SPRINT_JEOPARDY risk', () => {
+    const report = {
+      ...baseReport,
+      risks: [{ type: 'SPRINT_JEOPARDY' as const, severity: 'high' as const, description: 'Sprint in jeopardy.' }],
+    };
+    const payload = buildIngestPayload(report, baseGithubCtx, 'ws-001');
+    expect(payload.summary.health).toBe('critical');
+  });
+
+  it('uses summary string as headline', () => {
+    const payload = buildIngestPayload(baseReport, baseGithubCtx, 'ws-001');
+    expect(payload.summary.headline).toBe('Sprint on track.');
+  });
+
+  it('maps risks with lowercase type and first sentence as title', () => {
+    const report = {
+      ...baseReport,
+      risks: [{ type: 'GHOST_WORK' as const, severity: 'low' as const, description: 'No Jira ticket found. Check PRs.' }],
+    };
+    const payload = buildIngestPayload(report, baseGithubCtx, 'ws-001');
+    expect(payload.risks[0].type).toBe('ghost_work');
+    expect(payload.risks[0].title).toBe('No Jira ticket found');
+    expect(payload.risks[0].links).toEqual([]);
+  });
+
+  it('maps githubHighlights to insights', () => {
+    const report = {
+      ...baseReport,
+      githubHighlights: [{ type: 'PR_MERGED' as const, ref: 'PR #42', author: 'alice', description: 'Auth middleware merged.' }],
+    };
+    const payload = buildIngestPayload(report, baseGithubCtx, 'ws-001');
+    expect(payload.insights[0].type).toBe('pr_merged');
+    expect(payload.insights[0].description).toBe('Auth middleware merged.');
   });
 });

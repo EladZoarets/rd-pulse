@@ -22,7 +22,7 @@ describe('App routing', () => {
 
   it('renders reports page at /reports', () => {
     renderWithProviders('/reports')
-    expect(screen.getByTestId('page-reports')).toBeInTheDocument()
+    expect(screen.getByTestId('reports-loading')).toBeInTheDocument()
   })
 
   it('renders report page at /report/:id', () => {
