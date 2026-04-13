@@ -13,6 +13,7 @@ export function SetupPage() {
   const [workspace, setWorkspace] = useState<WorkspaceCreateResponse | null>(null)
 
   function handleWorkspaceCreated(ws: WorkspaceCreateResponse) {
+    localStorage.setItem('workspaceId', ws.workspaceId)
     setWorkspace(ws)
     setStep('connecting')
   }

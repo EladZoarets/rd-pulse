@@ -3,10 +3,9 @@ import { PageContainer } from '../components/layout/PageContainer'
 import { ReportCard } from '../components/reports/ReportCard'
 import { useReports } from '../hooks/useReports'
 
-const WORKSPACE_ID = 'workspace-acme-001'
-
 export function ReportsPage() {
-  const { data, isLoading, isError, error } = useReports(WORKSPACE_ID)
+  const workspaceId = localStorage.getItem('workspaceId') ?? ''
+  const { data, isLoading, isError, error } = useReports(workspaceId)
 
   return (
     <AppShell>
