@@ -12,7 +12,7 @@ export function ConnectorInstallStep({ workspace, onActive }: Props) {
   const [copied, setCopied] = useState(false)
   const { data: status } = useWorkspaceStatus(workspace.workspaceId)
 
-  const command = `npx rdpulse-connector --workspace=${workspace.workspaceId} --jwt=${workspace.licenseJwt}`
+  const command = `npx rdpulse-connector connect --workspace=${workspace.workspaceId} --jwt=${workspace.licenseJwt}`
 
   useEffect(() => {
     if (status?.status === 'active') {

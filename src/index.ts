@@ -153,8 +153,8 @@ export async function runPulse(opts: PulseOptions, env: NodeJS.ProcessEnv): Prom
   if (opts.jiraSpField) jiraOptions.storyPointsField = opts.jiraSpField;
 
   const rdpulseServer = env.RDPULSE_SERVER;
-  const workspaceId = env.WORKSPACE_ID;
-  const rdpulseJwt = env.RDPULSE_JWT;
+  const workspaceId = opts.workspace ?? env.WORKSPACE_ID;
+  const rdpulseJwt = opts.jwt ?? env.RDPULSE_JWT;
   const sender = rdpulseServer && workspaceId && rdpulseJwt
     ? new ReportSenderService(rdpulseServer, workspaceId, rdpulseJwt)
     : null;
@@ -226,7 +226,27 @@ program
   .option('--model <model>', 'OpenAI model to use', 'gpt-4o')
   .option('--jira-fields <fields>', 'Comma-separated Jira fields to fetch')
   .option('--jira-sp-field <field>', 'Jira custom field for story points')
+  .option('--workspace <id>', 'rd-pulse workspace ID (overrides WORKSPACE_ID env var)')
+  .option('--jwt <token>', 'rd-pulse JWT token (overrides RDPULSE_JWT env var)')
   .action((opts: PulseOptions) => runPulse(opts, process.env));
+
+program
+  .command('connect')
+  .description('Verify connectivity by sending a heartbeat to the rd-pulse dashboard')
+  .requiredOption('--workspace <id>', 'rd-pulse workspace ID')
+  .requiredOption('--jwt <token>', 'rd-pulse JWT token')
+  .option('--server <url>', 'rd-pulse server URL', 'https://rdpulse-backend-production.up.railway.app')
+  .action(async (opts: { workspace: string; jwt: string; server: string }) => {
+    const { ReportSenderService } = await import('./services/ReportSenderService');
+    const sender = new ReportSenderService(opts.server, opts.workspace, opts.jwt);
+    try {
+      await sender.sendHeartbeat();
+      console.log('✓ Workspace connected! Head back to the dashboard.');
+    } catch (err) {
+      console.error('Connection failed:', err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+  });
 
 if (require.main === module) {
   program.parse(process.argv);

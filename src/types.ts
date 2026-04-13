@@ -200,4 +200,6 @@ export interface PulseOptions {
   model: string;
   jiraFields?: string;
   jiraSpField?: string;
+  workspace?: string;
+  jwt?: string;
 }
