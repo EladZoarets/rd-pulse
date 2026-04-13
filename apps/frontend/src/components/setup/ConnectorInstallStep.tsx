@@ -92,9 +92,9 @@ JIRA_TOKEN=...`
       </div>
 
       <div className="space-y-8">
-        <Step number={1} title="Create a .env file in your repo">
+        <Step number={1} title="Create a .env file on the machine you'll run the connector from">
           <p className="text-sm text-slate-500">
-            The top three lines are pre-filled with your workspace credentials. Fill in the rest with your own API keys.
+            This can be your laptop or a CI server — anywhere with access to your GitHub org. The top three lines are pre-filled. Fill in the rest with your own API keys.
           </p>
           <CopyBlock label=".env" text={envBlock} testId="install-command" />
           <div className="space-y-1 text-xs text-slate-400">
@@ -104,9 +104,9 @@ JIRA_TOKEN=...`
           </div>
         </Step>
 
-        <Step number={2} title="Run your first report">
+        <Step number={2} title="Run the connector from that same machine">
           <p className="text-sm text-slate-500">
-            Replace <code className="bg-slate-100 px-1 rounded text-xs">YOUR_ORG</code>, <code className="bg-slate-100 px-1 rounded text-xs">YOUR_REPO</code>, and <code className="bg-slate-100 px-1 rounded text-xs">YOUR_BOARD_ID</code> with your GitHub org, repo name, and Jira board ID.
+            Replace the placeholders with your GitHub org, repo name, and Jira board ID. The connector will fetch activity, run AI analysis, and push the report here.
           </p>
           <CopyBlock label="Terminal" text={runCommand} />
         </Step>
