@@ -129,8 +129,8 @@ JIRA_TOKEN=...`
     <div className="space-y-4">
       <StepCard
         number={1}
-        title="Create a .env file on your connector machine"
-        description="This can be your laptop or a CI server — anywhere with access to your GitHub org. The top three lines are pre-filled."
+        title="Create a .env file in your project directory"
+        description="Place this file in the same directory where you'll run the connector command. The top three lines are pre-filled with your workspace credentials."
       >
         <CopyBlock label=".env" text={envBlock} testId="install-command" />
         <div className="grid grid-cols-1 gap-1.5 pt-1">
