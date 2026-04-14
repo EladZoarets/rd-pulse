@@ -1,10 +1,21 @@
+import { useSearchParams } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
 import { PageContainer } from '../components/layout/PageContainer'
 import { ReportCard } from '../components/reports/ReportCard'
 import { useReports } from '../hooks/useReports'
 
 export function ReportsPage() {
-  const workspaceId = localStorage.getItem('workspaceId') ?? ''
+  const [searchParams] = useSearchParams()
+  const workspaceId =
+    searchParams.get('workspaceId') ??
+    localStorage.getItem('workspaceId') ??
+    ''
+
+  // Keep localStorage in sync with the URL param so subsequent navigations work
+  if (searchParams.get('workspaceId') && workspaceId) {
+    localStorage.setItem('workspaceId', workspaceId)
+  }
+
   const { data, isLoading, isError, error } = useReports(workspaceId)
 
   return (

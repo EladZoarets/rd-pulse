@@ -33,8 +33,8 @@ function useResumeActiveWorkspace(step: Step) {
   const { data } = useWorkspaceStatus(storedId)
 
   useEffect(() => {
-    if (step === 'form' && data?.status === 'active') {
-      navigate('/reports', { replace: true })
+    if (step === 'form' && data?.status === 'active' && storedId) {
+      navigate(`/reports?workspaceId=${storedId}`, { replace: true })
     }
   }, [data, navigate, step])
 }

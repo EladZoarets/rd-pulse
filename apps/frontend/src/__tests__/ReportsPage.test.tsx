@@ -14,7 +14,7 @@ function renderReportsPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/reports?workspaceId=ws-test']}>
         <ReportsPage />
       </MemoryRouter>
     </QueryClientProvider>
