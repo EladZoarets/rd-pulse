@@ -123,7 +123,7 @@ JIRA_DOMAIN=https://your-org.atlassian.net
 JIRA_EMAIL=you@yourcompany.com
 JIRA_TOKEN=...`
 
-  const runCommand = `npx rdpulse-connector --workspace=${workspace.workspaceId} --jwt=${workspace.licenseJwt}`
+  const runCommand = `npx rdpulse-connector pulse --owner your-org --repo your-repo --board 42`
 
   return (
     <div className="space-y-4">

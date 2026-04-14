@@ -96,7 +96,7 @@ describe('ConnectorInstallStep', () => {
 
     await waitFor(() =>
       expect(clipboardWriteText).toHaveBeenCalledWith(
-        `npx rdpulse-connector --workspace=ws-123 --jwt=jwt-abc`
+        `npx rdpulse-connector pulse --owner your-org --repo your-repo --board 42`
       )
     )
   })
