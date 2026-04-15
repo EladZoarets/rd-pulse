@@ -1,7 +1,13 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { vi } from 'vitest'
 import App from '../App'
+import { api } from '../api'
+
+vi.mock('../api', () => ({
+  api: { getReports: vi.fn(), getReport: vi.fn() },
+}))
 
 function renderWithProviders(initialPath: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -21,7 +27,8 @@ describe('App routing', () => {
   })
 
   it('renders reports page at /reports', () => {
-    renderWithProviders('/reports')
+    vi.mocked(api.getReports).mockReturnValue(new Promise(() => {}))
+    renderWithProviders('/reports?workspaceId=ws-test')
     expect(screen.getByTestId('reports-loading')).toBeInTheDocument()
   })
 

@@ -32,22 +32,22 @@ describe('ReportPage', () => {
     expect(screen.getByTestId('report-loading')).toBeInTheDocument()
   })
 
-  it('renders report header after data loads', async () => {
+  it('renders health banner after data loads', async () => {
     renderReportPage('report-at-risk')
-    await waitFor(() => expect(screen.getByTestId('report-header')).toBeInTheDocument(), { timeout: 2000 })
+    await waitFor(() => expect(screen.getByTestId('health-banner')).toBeInTheDocument(), { timeout: 2000 })
   })
 
-  it('renders health badge with correct health', async () => {
+  it('renders health banner with report headline', async () => {
     renderReportPage('report-at-risk')
     await waitFor(() => {
-      const badge = screen.getByTestId('health-badge')
-      expect(badge).toHaveAttribute('data-health', mockReportAtRisk.summary.health)
+      const banner = screen.getByTestId('health-banner')
+      expect(banner).toHaveTextContent(mockReportAtRisk.summary.headline)
     }, { timeout: 2000 })
   })
 
-  it('renders top risks section', async () => {
+  it('renders issues section', async () => {
     renderReportPage('report-at-risk')
-    await waitFor(() => expect(screen.getByTestId('top-risks-section')).toBeInTheDocument(), { timeout: 2000 })
+    await waitFor(() => expect(screen.getByTestId('issues-section')).toBeInTheDocument(), { timeout: 2000 })
   })
 
   it('renders navigation links with target=_blank', async () => {

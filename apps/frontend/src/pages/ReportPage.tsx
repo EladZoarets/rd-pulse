@@ -1,11 +1,9 @@
 import { useParams } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
 import { PageContainer } from '../components/layout/PageContainer'
-import { ReportHeader } from '../components/report/ReportHeader'
-import { TopRisksSection } from '../components/report/TopRisksSection'
-import { JiraRisksSection } from '../components/report/JiraRisksSection'
-import { TeamSignalsSection } from '../components/report/TeamSignalsSection'
-import { GitHubSignalsSection } from '../components/report/GitHubSignalsSection'
+import { HealthBanner } from '../components/report/HealthBanner'
+import { ChartsRow } from '../components/report/ChartsRow'
+import { IssuesSection } from '../components/report/IssuesSection'
 import { NavigationLinks } from '../components/report/NavigationLinks'
 import { useReport } from '../hooks/useReport'
 
@@ -43,13 +41,9 @@ export function ReportPage() {
   return (
     <AppShell>
       <PageContainer>
-        <ReportHeader report={report} />
-        <TopRisksSection risks={report.risks} />
-        <div className="mb-6 grid gap-6 md:grid-cols-2">
-          <JiraRisksSection risks={report.risks} />
-          <TeamSignalsSection risks={report.risks} />
-        </div>
-        <GitHubSignalsSection risks={report.risks} />
+        <HealthBanner report={report} />
+        <ChartsRow risks={report.risks} />
+        <IssuesSection risks={report.risks} />
         <NavigationLinks risks={report.risks} insights={report.insights} />
       </PageContainer>
     </AppShell>
