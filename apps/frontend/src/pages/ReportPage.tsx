@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
 import { PageContainer } from '../components/layout/PageContainer'
@@ -5,11 +6,13 @@ import { HealthBanner } from '../components/report/HealthBanner'
 import { ChartsRow } from '../components/report/ChartsRow'
 import { IssuesSection } from '../components/report/IssuesSection'
 import { NavigationLinks } from '../components/report/NavigationLinks'
+import type { ActiveFilter } from '../components/report/types'
 import { useReport } from '../hooks/useReport'
 
 export function ReportPage() {
   const { id } = useParams<{ id: string }>()
   const { data: report, isLoading, isError, error } = useReport(id ?? '')
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null)
 
   if (isLoading) {
     return (
@@ -42,8 +45,16 @@ export function ReportPage() {
     <AppShell>
       <PageContainer>
         <HealthBanner report={report} />
-        <ChartsRow risks={report.risks} />
-        <IssuesSection risks={report.risks} />
+        <ChartsRow
+          risks={report.risks}
+          activeFilter={activeFilter}
+          onFilterChange={setActiveFilter}
+        />
+        <IssuesSection
+          risks={report.risks}
+          activeFilter={activeFilter}
+          onClearFilter={() => setActiveFilter(null)}
+        />
         <NavigationLinks risks={report.risks} insights={report.insights} />
       </PageContainer>
     </AppShell>
