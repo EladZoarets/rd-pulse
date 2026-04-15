@@ -1,74 +1,77 @@
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import type { RiskPayload } from '@rdpulse/types'
 
 interface Props {
   risks: RiskPayload[]
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  sprint_jeopardy: 'Sprint Risk',
-  review_bottleneck: 'Review',
-  ghost_work: 'Ghost Work',
-  unassigned_risk: 'Unassigned',
-  stall: 'Stalled',
-  overload: 'Overload',
+// Source buckets — maps risk.type → display label + color
+const JIRA_TYPES = new Set(['sprint_jeopardy', 'unassigned_risk', 'stall'])
+const GITHUB_TYPES = new Set(['review_bottleneck', 'ghost_work'])
+
+function detectSource(type: string): 'Jira' | 'GitHub' | 'Team' {
+  if (JIRA_TYPES.has(type)) return 'Jira'
+  if (GITHUB_TYPES.has(type)) return 'GitHub'
+  return 'Team'
 }
 
-const COLORS = [
-  '#3b82f6',
-  '#ef4444',
-  '#f59e0b',
-  '#8b5cf6',
-  '#22c55e',
-  '#ec4899',
+const BUCKETS = [
+  { key: 'Jira',   color: '#3b82f6', bg: 'bg-blue-50',   text: 'text-blue-700',   desc: 'Sprint & tickets' },
+  { key: 'GitHub', color: '#334155', bg: 'bg-slate-100',  text: 'text-slate-700',  desc: 'PRs & reviews' },
+  { key: 'Team',   color: '#8b5cf6', bg: 'bg-purple-50',  text: 'text-purple-700', desc: 'Workload signals' },
 ]
 
 export function RiskTypeChart({ risks }: Props) {
-  const countMap: Record<string, number> = {}
+  const counts: Record<string, number> = { Jira: 0, GitHub: 0, Team: 0 }
   for (const r of risks) {
-    const label = TYPE_LABELS[r.type] ?? r.type
-    countMap[label] = (countMap[label] ?? 0) + 1
+    counts[detectSource(r.type)]++
   }
+  const total = risks.length
 
-  const data = Object.entries(countMap).map(([name, value]) => ({ name, value }))
-
-  if (data.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-slate-400">
-        No issues detected
-      </div>
-    )
-  }
+  const chartData = BUCKETS
+    .filter(b => counts[b.key] > 0)
+    .map(b => ({ name: b.key, value: counts[b.key], color: b.color }))
 
   return (
-    <div
-      role="img"
-      aria-label="Risk type distribution pie chart"
-      className="h-[220px] w-full"
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={55}
-            outerRadius={80}
-            paddingAngle={3}
-            dataKey="value"
-          >
-            {data.map((entry, index) => (
-              <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip />
-          <Legend
-            iconType="circle"
-            iconSize={8}
-            wrapperStyle={{ fontSize: '12px' }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+    <div>
+      {/* Stat tiles */}
+      <div className="mb-4 grid grid-cols-3 gap-2">
+        {BUCKETS.map(b => (
+          <div key={b.key} className={`rounded-xl p-3 text-center ${b.bg}`}>
+            <div className={`text-2xl font-bold ${b.text}`}>{counts[b.key]}</div>
+            <div className={`mt-0.5 text-xs font-semibold ${b.text}`}>{b.key}</div>
+            <div className={`text-[10px] leading-tight mt-0.5 ${b.text} opacity-70`}>{b.desc}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Donut — visual proportion */}
+      {total > 0 && (
+        <div role="img" aria-label={`Issues by source: ${counts.Jira} Jira, ${counts.GitHub} GitHub, ${counts.Team} Team`} className="h-[140px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={42}
+                outerRadius={62}
+                paddingAngle={3}
+                dataKey="value"
+                startAngle={90}
+                endAngle={-270}
+              >
+                {chartData.map(entry => (
+                  <Cell key={entry.name} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value) => [`${value} of ${total}`, undefined]}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   )
 }
