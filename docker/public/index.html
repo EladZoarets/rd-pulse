@@ -24,12 +24,7 @@
       justify-content: space-between;
     }
 
-    header h1 {
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: -0.3px;
-    }
-
+    header h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
     header h1 span { color: #6366f1; }
 
     .container { max-width: 720px; margin: 40px auto; padding: 0 24px; }
@@ -46,7 +41,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 32px;
+      margin-bottom: 16px;
     }
 
     button {
@@ -64,6 +59,14 @@
     button:hover { background: #4f46e5; }
     button:disabled { background: #a5b4fc; cursor: not-allowed; }
 
+    .btn-secondary {
+      background: none;
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+      padding: 9px 16px;
+    }
+    .btn-secondary:hover { background: #f8fafc; color: #1e293b; }
+
     .status-pill {
       font-size: 12px;
       font-weight: 600;
@@ -74,6 +77,94 @@
     .status-pill.running { background: #fef9c3; color: #854d0e; }
     .status-pill.idle    { background: #f1f5f9; color: #64748b; }
     .status-pill.error   { background: #fee2e2; color: #991b1b; }
+
+    /* Settings panel */
+    .settings-panel {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .settings-toggle {
+      width: 100%;
+      background: #fff;
+      border: none;
+      border-radius: 0;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: background 0.15s;
+    }
+
+    .settings-toggle:hover { background: #f8fafc; color: #1e293b; }
+
+    .settings-toggle .arrow {
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+
+    .settings-toggle.open .arrow { transform: rotate(180deg); }
+
+    .settings-body {
+      display: none;
+      padding: 16px;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .settings-body.open { display: block; }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+    }
+
+    input {
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      color: #1e293b;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input:focus { border-color: #6366f1; }
+    input::placeholder { color: #cbd5e1; }
+
+    .field-hint {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    .settings-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #e2e8f0;
+    }
 
     .section-title {
       font-size: 11px;
@@ -96,9 +187,14 @@
 
     .report-item:last-child { border-bottom: none; }
 
-    .report-item time {
-      font-size: 13px;
-      color: #475569;
+    .report-meta { display: flex; flex-direction: column; gap: 2px; }
+
+    .report-item time { font-size: 13px; color: #475569; }
+
+    .report-item .repo-tag {
+      font-size: 11px;
+      color: #94a3b8;
+      font-family: monospace;
     }
 
     .report-item a {
@@ -106,6 +202,7 @@
       font-weight: 600;
       color: #6366f1;
       text-decoration: none;
+      white-space: nowrap;
     }
 
     .report-item a:hover { text-decoration: underline; }
@@ -141,6 +238,11 @@
       margin-bottom: 16px;
       display: none;
     }
+
+    @media (max-width: 480px) {
+      .settings-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: 1; }
+    }
   </style>
 </head>
 <body>
@@ -151,19 +253,57 @@
 </header>
 
 <div class="container">
+
+  <!-- Action bar -->
   <div class="actions">
     <button id="run-btn" onclick="runReport()">Generate Report Now</button>
     <span id="status-pill" class="status-pill idle">Idle</span>
   </div>
 
+  <!-- Error banner -->
   <div id="error-banner" class="error-banner"></div>
 
+  <!-- Settings panel -->
+  <div class="settings-panel">
+    <button class="settings-toggle" id="settings-toggle" onclick="toggleSettings()">
+      <span>⚙️ &nbsp;Override settings for this run</span>
+      <span class="arrow">▼</span>
+    </button>
+    <div class="settings-body" id="settings-body">
+      <div class="settings-grid">
+        <div class="field">
+          <label for="f-owner">GitHub Owner</label>
+          <input id="f-owner" type="text" placeholder="your-org" />
+        </div>
+        <div class="field">
+          <label for="f-repo">Repo(s)</label>
+          <input id="f-repo" type="text" placeholder="backend,frontend" />
+          <span class="field-hint">Comma-separated for multiple repos</span>
+        </div>
+        <div class="field">
+          <label for="f-board">Jira Board ID</label>
+          <input id="f-board" type="text" placeholder="42" />
+        </div>
+        <div class="field">
+          <label for="f-days">Days of history</label>
+          <input id="f-days" type="number" min="1" max="30" placeholder="1" />
+        </div>
+      </div>
+      <div class="settings-footer">
+        <button class="btn-secondary" onclick="resetSettings()">Reset to defaults</button>
+        <button onclick="runReport()">Run with these settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reports list -->
   <div class="card">
     <div class="section-title">Reports</div>
     <ul class="report-list" id="report-list">
       <li class="empty">No reports yet — click "Generate Report Now" to create one.</li>
     </ul>
   </div>
+
 </div>
 
 <script>
@@ -175,6 +315,33 @@
       + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   }
 
+  function toggleSettings() {
+    const toggle = document.getElementById('settings-toggle');
+    const body = document.getElementById('settings-body');
+    toggle.classList.toggle('open');
+    body.classList.toggle('open');
+  }
+
+  function resetSettings() {
+    document.getElementById('f-owner').value = '';
+    document.getElementById('f-repo').value = '';
+    document.getElementById('f-board').value = '';
+    document.getElementById('f-days').value = '';
+  }
+
+  function getOverrides() {
+    const owner = document.getElementById('f-owner').value.trim();
+    const repo  = document.getElementById('f-repo').value.trim();
+    const board = document.getElementById('f-board').value.trim();
+    const days  = document.getElementById('f-days').value.trim();
+    const overrides = {};
+    if (owner) overrides.owner = owner;
+    if (repo)  overrides.repo  = repo;
+    if (board) overrides.board = board;
+    if (days)  overrides.days  = parseInt(days, 10);
+    return overrides;
+  }
+
   function renderReports(reports) {
     const list = document.getElementById('report-list');
     if (!reports.length) {
@@ -183,15 +350,18 @@
     }
     list.innerHTML = reports.map((r, i) => `
       <li class="report-item">
-        <time>${formatDate(r.createdAt)}</time>
+        <div class="report-meta">
+          <time>${formatDate(r.createdAt)}</time>
+          ${r.repo ? `<span class="repo-tag">${r.repo}</span>` : ''}
+        </div>
         <a href="${r.url}" target="_blank">${i === 0 ? 'Latest report →' : 'View →'}</a>
       </li>
     `).join('');
   }
 
   function setStatus(isRunning, lastError) {
-    const pill = document.getElementById('status-pill');
-    const btn = document.getElementById('run-btn');
+    const pill   = document.getElementById('status-pill');
+    const btn    = document.getElementById('run-btn');
     const banner = document.getElementById('error-banner');
 
     if (isRunning) {
@@ -227,12 +397,23 @@
 
   async function runReport() {
     document.getElementById('error-banner').style.display = 'none';
-    await fetch('/api/run', { method: 'POST' });
+    const overrides = getOverrides();
+    await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(overrides),
+    });
     if (!polling) { polling = true; poll(); }
   }
 
-  // Initial load
-  poll();
+  // Initial load + cron label
+  fetch('/api/status').then(r => r.json()).then(data => {
+    setStatus(data.isRunning, data.lastError);
+    renderReports(data.reports);
+    if (data.cron) {
+      document.getElementById('cron-label').textContent = `Cron: ${data.cron}`;
+    }
+  });
   setInterval(poll, 30000);
 </script>
 </body>

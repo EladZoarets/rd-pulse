@@ -42,11 +42,19 @@ function getReports() {
 let isRunning = false;
 let lastError = null;
 let lastRun = null;
+let lastRepo = null;
 
-function runConnector(callback) {
+function runConnector(overrides, callback) {
   if (isRunning) return callback(new Error('Already running'));
   isRunning = true;
   lastError = null;
+
+  const owner = overrides.owner || process.env.GITHUB_OWNER;
+  const repo  = overrides.repo  || process.env.GITHUB_REPO;
+  const board = overrides.board || process.env.JIRA_BOARD;
+  const days  = String(overrides.days  || process.env.DAYS || '1');
+
+  lastRepo = repo;
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const filename = `report-${timestamp}.html`;
@@ -54,17 +62,17 @@ function runConnector(callback) {
 
   const args = [
     'pulse',
-    '--owner', process.env.GITHUB_OWNER,
-    '--repo', process.env.GITHUB_REPO,
-    '--board', process.env.JIRA_BOARD,
+    '--owner', owner,
+    '--repo',  repo,
+    '--board', board,
     '--format', 'html',
     '--output', outputPath,
-    '--days', process.env.DAYS || '1',
+    '--days', days,
   ];
 
   if (process.env.MODEL) args.push('--model', process.env.MODEL);
 
-  console.log(`[${new Date().toISOString()}] Starting report generation…`);
+  console.log(`[${new Date().toISOString()}] Starting report generation (${owner}/${repo})…`);
 
   const proc = spawn('rdpulse-connector', args, {
     env: process.env,
@@ -94,14 +102,15 @@ app.get('/', (_req, res) => {
 });
 
 app.get('/api/status', (_req, res) => {
-  res.json({ isRunning, lastRun, lastError, reports: getReports() });
+  res.json({ isRunning, lastRun, lastError, lastRepo, cron: CRON_SCHEDULE, reports: getReports() });
 });
 
-app.post('/api/run', (_req, res) => {
+app.post('/api/run', (req, res) => {
   if (isRunning) return res.status(409).json({ error: 'Report generation already in progress' });
+  const overrides = req.body || {};
   // Respond immediately — client polls /api/status for completion
   res.json({ started: true });
-  runConnector(() => {});
+  runConnector(overrides, () => {});
 });
 
 app.get('/report/:filename', (req, res) => {
@@ -120,7 +129,7 @@ if (!fs.existsSync(REPORTS_DIR)) fs.mkdirSync(REPORTS_DIR, { recursive: true });
 
 cron.schedule(CRON_SCHEDULE, () => {
   console.log(`[rd-pulse] Cron triggered (${CRON_SCHEDULE})`);
-  runConnector(() => {});
+  runConnector({}, () => {});
 });
 
 app.listen(PORT, () => {
