@@ -25,7 +25,8 @@ Return ONLY valid JSON matching this exact schema — no markdown fences, no ext
     {
       "type": "GHOST_WORK | SPRINT_JEOPARDY | OVERLOAD | STALL | UNASSIGNED",
       "description": "string",
-      "severity": "high | medium | low"
+      "severity": "high | medium | low",
+      "refs": ["string — e.g. PR #42 or PROJ-123"]
     }
   ],
   "personalPulse": [
@@ -51,6 +52,6 @@ Guidelines:
 - summary: 2-3 sentence sprint health overview covering velocity, blockers, and confidence
 - githubHighlights: key GitHub activity from the window — merged PRs, open PRs in review, ghost work PRs (pre-labeled [GHOST WORK]), and any direct commits to main. One entry per PR or notable commit. Max 10 entries. For ghost work, use type GHOST_WORK and note the missing Jira link.
 - topicBreakdown: group Jira issues by epic name or label into topics; compute completionPercent as doneCount/totalIssues*100 rounded to nearest integer
-- risks: sort by severity (high → medium → low); omit types with no evidence
+- risks: sort by severity (high → medium → low); omit types with no evidence; populate refs with the specific Jira issue keys (e.g. "PROJ-123") and/or PR numbers (e.g. "PR #42") that are the evidence for this risk — leave empty array if none
 - personalPulse: one entry per unique contributor found across GitHub PRs and Jira assignees; inReview = open non-draft PRs authored by this person
 - managersNote: 2-3 sentence narrative written for a non-technical engineering manager; mention top risk if any

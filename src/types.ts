@@ -158,6 +158,7 @@ export interface RiskItem {
   type: RiskType;
   description: string;
   severity: 'high' | 'medium' | 'low';
+  refs?: string[];
 }
 
 export interface PersonalPulse {

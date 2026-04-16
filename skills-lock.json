@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "skill-builder": {
+      "source": "eladzoarets/claude-skill-builder",
+      "sourceType": "github",
+      "computedHash": "b5702669dba9e4c6f233b79af1c085ec110311063b3f7ffc1dfa7f02e68ad390"
+    }
+  }
+}

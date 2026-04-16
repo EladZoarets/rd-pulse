@@ -121,6 +121,42 @@ function buildSprintData(jiraCtx: JiraSprintContext): ReportPayload['sprintData'
   return { overallPercent, users };
 }
 
+// ── Risk link builder ─────────────────────────────────────────────────────────
+
+const PR_REF_RE = /^PR\s*#(\d+)$/i;
+const JIRA_KEY_RE = /^[A-Z][A-Z0-9]+-\d+$/;
+
+function buildRiskLinks(
+  refs: string[],
+  githubCtx: ActivityContext,
+  jiraCtx?: JiraSprintContext
+): Array<{ label: string; url: string }> {
+  const links: Array<{ label: string; url: string }> = [];
+  const jiraDomain = process.env.JIRA_DOMAIN?.replace(/\/$/, '');
+  const ghBase = `https://github.com/${githubCtx.owner}/${githubCtx.repo}`;
+
+  for (const ref of refs) {
+    const prMatch = PR_REF_RE.exec(ref);
+    if (prMatch) {
+      links.push({ label: `PR #${prMatch[1]}`, url: `${ghBase}/pull/${prMatch[1]}` });
+      continue;
+    }
+    if (JIRA_KEY_RE.test(ref) && jiraDomain) {
+      links.push({ label: ref, url: `${jiraDomain}/browse/${ref}` });
+    }
+  }
+
+  // Fallback: if no refs resolved but we have Jira context, link to the board
+  if (links.length === 0 && jiraCtx && jiraDomain) {
+    links.push({
+      label: `Board ${jiraCtx.boardId}`,
+      url: `${jiraDomain}/jira/software/boards/${jiraCtx.boardId}`,
+    });
+  }
+
+  return links;
+}
+
 // ── IngestPayload builder ─────────────────────────────────────────────────────
 
 export function buildIngestPayload(
@@ -150,7 +186,7 @@ export function buildIngestPayload(
       severity: r.severity,
       title: r.description.split('.')[0].trim(),
       description: r.description,
-      links: [],
+      links: buildRiskLinks(r.refs ?? [], githubCtx, jiraCtx),
     })),
     insights: report.githubHighlights.map((h) => ({
       type: h.type.toLowerCase(),

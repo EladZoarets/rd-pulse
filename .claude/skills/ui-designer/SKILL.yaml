@@ -1,0 +1,13 @@
+name: ui-designer
+description: Design a UI/UX page following modern best practices — produces a structured spec for frontend developers or agents.
+invocation: /ui-designer
+triggers:
+  - design a page
+  - design a screen
+  - wireframe
+  - mock up a page
+  - layout for
+  - UI for
+agents:
+  - frontend
+  - developer

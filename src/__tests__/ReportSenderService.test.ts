@@ -62,7 +62,7 @@ describe('ReportSenderService', () => {
       await makeSender().sendHeartbeat();
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.rdpulse.io/workspaces/ws-001/heartbeat',
+        'https://api.rdpulse.io/api/v1/workspaces/ws-001/heartbeat',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -78,7 +78,7 @@ describe('ReportSenderService', () => {
       await sender.sendHeartbeat();
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.rdpulse.io/workspaces/ws-001/heartbeat',
+        'https://api.rdpulse.io/api/v1/workspaces/ws-001/heartbeat',
         expect.anything()
       );
     });
@@ -107,7 +107,7 @@ describe('ReportSenderService', () => {
       await makeSender().sendReport(MOCK_PAYLOAD);
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.rdpulse.io/ingest/report',
+        'https://api.rdpulse.io/api/v1/ingest/report',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
