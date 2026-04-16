@@ -11,6 +11,16 @@ import { HtmlFormatterService } from './services/HtmlFormatterService';
 import { ReportSenderService, ReportPayload } from './services/ReportSenderService';
 import { printHeader, log, handleFatalError } from './utils/logger';
 
+async function uploadToBlob(html: string, filename: string, token: string): Promise<string> {
+  const { put } = await import('@vercel/blob');
+  const blob = await put(filename, html, {
+    access: 'public',
+    contentType: 'text/html; charset=utf-8',
+    token,
+  });
+  return blob.url;
+}
+
 dotenv.config();
 
 const program = new Command();
@@ -79,7 +89,22 @@ program
         console.log(output);
         console.log('─'.repeat(60) + '\n');
       } else {
-        log(`Open in browser: open ${outputPath}`);
+        const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+        if (blobToken) {
+          try {
+            const date = new Date().toISOString().slice(0, 10);
+            const filename = `analyze-${opts.owner}-${opts.repo}-${date}.html`;
+            const url = await uploadToBlob(output, filename, blobToken);
+            console.log('\n' + '─'.repeat(60));
+            console.log(`Report URL: ${url}`);
+            console.log('─'.repeat(60) + '\n');
+          } catch (err) {
+            log(`Warning: blob upload failed — ${err instanceof Error ? err.message : String(err)}`);
+            log(`Open locally: open ${outputPath}`);
+          }
+        } else {
+          log(`Open in browser: open ${outputPath}`);
+        }
       }
     } catch (err) {
       handleFatalError(err, 'analyze');
@@ -289,7 +314,22 @@ export async function runPulse(opts: PulseOptions, env: NodeJS.ProcessEnv): Prom
       console.log(output);
       console.log('─'.repeat(60) + '\n');
     } else {
-      log(`Open in browser: open ${outputPath}`);
+      const blobToken = env.BLOB_READ_WRITE_TOKEN;
+      if (blobToken) {
+        try {
+          const date = new Date().toISOString().slice(0, 10);
+          const filename = `pulse-${opts.owner}-${opts.repo}-${date}.html`;
+          const url = await uploadToBlob(output, filename, blobToken);
+          console.log('\n' + '─'.repeat(60));
+          console.log(`Report URL: ${url}`);
+          console.log('─'.repeat(60) + '\n');
+        } catch (err) {
+          log(`Warning: blob upload failed — ${err instanceof Error ? err.message : String(err)}`);
+          log(`Open locally: open ${outputPath}`);
+        }
+      } else {
+        log(`Open in browser: open ${outputPath}`);
+      }
     }
   } catch (err) {
     handleFatalError(err, 'pulse');
@@ -303,7 +343,7 @@ program
   .requiredOption('--board <board>', 'Jira board ID')
   .option('--days <days>', 'Number of days to look back', '1')
   .option('--output <path>', 'Output file path (default: PULSE_REPORT.md or PULSE_REPORT.html)')
-  .option('--format <fmt>', 'Output format: md or html', 'md')
+  .option('--format <fmt>', 'Output format: md or html', 'html')
   .option('--model <model>', 'OpenAI model to use', 'gpt-4o')
   .option('--jira-fields <fields>', 'Comma-separated Jira fields to fetch')
   .option('--jira-sp-field <field>', 'Jira custom field for story points')

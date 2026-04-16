@@ -1,6 +1,6 @@
 {
   "name": "rdpulse-connector",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "AI-powered R&D intelligence agent that transforms GitHub activity into actionable daily digests",
   "workspaces": [
     "packages/*",
@@ -40,6 +40,7 @@
   },
   "dependencies": {
     "@octokit/rest": "^21.0.2",
+    "@vercel/blob": "^2.3.3",
     "axios": "^1.14.0",
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",
