@@ -1,8 +1,14 @@
 # rd-pulse
 
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![npm](https://img.shields.io/npm/v/rdpulse-connector)
+![Docker](https://img.shields.io/badge/Docker-eladzoarets766%2Frdpulse--dashboard-blue)
+
 AI-powered R&D intelligence agent that transforms GitHub + Jira activity into a daily briefing for engineering managers.
 
 Instead of context-switching between GitHub and Jira, you get one structured HTML report — with sprint health, risk cards, clickable PR and Jira links, sprint completion charts, and a per-developer pulse — delivered to your browser automatically every morning.
+
+**Free and open source. MIT licensed.**
 
 ---
 
@@ -112,20 +118,6 @@ Each report is a self-contained interactive dashboard:
 
 ---
 
-## Trial & Licensing
-
-rd-pulse includes a **14-day free trial** — no sign-up required.
-
-- Full features during the trial
-- A `🟢 rd-pulse trial — N days remaining` message prints in the terminal on every run
-- After 14 days: a sticky banner appears at the top of generated HTML reports with a link to purchase a license
-
-Trial state is stored in `/reports/.rdpulse-trial.json` (inside the Docker volume) so it persists across container restarts.
-
-To purchase a license: **https://rdpulse.io/license**
-
----
-
 ## Configuration
 
 ### Environment Variables
@@ -210,7 +202,7 @@ rd-pulse/
 ├── prompt.md                   # LLM instructions for analyze command
 ├── prompt-unified.md           # LLM instructions for pulse command
 ├── .env.example                # Template — copy to .env and fill in
-├── LICENSE                     # Commercial license terms
+├── LICENSE                     # MIT license
 └── src/                        # Connector CLI source (TypeScript)
     ├── index.ts                # CLI entry — analyze + pulse commands
     ├── types.ts                # All shared TypeScript interfaces
@@ -253,12 +245,10 @@ rd-pulse/
 - [x] Self-contained HTML report with donut chart, risk cards, pulse bars, topic breakdown
 - [x] Clickable Jira and GitHub links in risk cards and activity timeline
 - [x] Docker dashboard with built-in cron, on-demand generation, report listing
-- [x] 14-day trial with terminal banner + post-expiry watermark
-- [x] Proprietary commercial LICENSE
+- [x] MIT license — free and open source
 
 ### Planned
 - [ ] SMTP email delivery — send report to manager's inbox on cron schedule
 - [ ] Slack integration — fetch channel messages and correlate with PRs/tickets
-- [ ] License key validation — online key check tied to purchase
 - [ ] Multi-repo support — aggregate reports across multiple repositories
 - [ ] AI assist tracking — detect and report AI-assisted PRs per developer

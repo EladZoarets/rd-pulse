@@ -421,7 +421,7 @@ ${main}
 </html>`;
   }
 
-  formatUnified(report: UnifiedReport, linkCtx?: { owner?: string; repo?: string; jiraDomain?: string }, watermark = ''): string {
+  formatUnified(report: UnifiedReport, linkCtx?: { owner?: string; repo?: string; jiraDomain?: string }): string {
     const repo = report.repo || '(unknown repo)';
     const owner = linkCtx?.owner ?? '';
     const repoName = linkCtx?.repo ?? '';
@@ -515,7 +515,6 @@ ${main}
 <html lang="en">
 ${head}
 <body>
-${watermark}
 ${header}
 ${main}
 </body>

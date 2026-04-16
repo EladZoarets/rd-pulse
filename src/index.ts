@@ -10,7 +10,6 @@ import { FormatterService } from './services/FormatterService';
 import { HtmlFormatterService } from './services/HtmlFormatterService';
 import { ReportSenderService, ReportPayload } from './services/ReportSenderService';
 import { printHeader, log, handleFatalError } from './utils/logger';
-import { LicenseService } from './services/LicenseService';
 
 async function uploadToBlob(html: string, filename: string, token: string): Promise<string> {
   const { put } = await import('@vercel/blob');
@@ -234,10 +233,6 @@ export function buildIngestPayload(
 export async function runPulse(opts: PulseOptions, env: NodeJS.ProcessEnv): Promise<void> {
   printHeader();
 
-  const license = new LicenseService();
-  const licenseStatus = license.getStatus();
-  console.log(license.formatBanner());
-
   const githubToken = env.GITHUB_TOKEN;
   const openaiKey = env.OPENAI_API_KEY;
   const jiraDomain = env.JIRA_DOMAIN;
@@ -308,11 +303,10 @@ export async function runPulse(opts: PulseOptions, env: NodeJS.ProcessEnv): Prom
     log(`Formatting report as ${fmt.toUpperCase()}…`);
     const output =
       fmt === 'html'
-        ? new HtmlFormatterService().formatUnified(report, { owner: opts.owner, repo: opts.repo, jiraDomain: jiraDomain! }, license.htmlWatermark())
+        ? new HtmlFormatterService().formatUnified(report, { owner: opts.owner, repo: opts.repo, jiraDomain: jiraDomain! })
         : new FormatterService().formatUnified(report);
 
     fs.writeFileSync(outputPath, output, 'utf8');
-    license.recordRun();
     log(`Report written to ${outputPath}`);
 
     if (fmt === 'md') {

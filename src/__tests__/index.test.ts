@@ -18,14 +18,6 @@ jest.mock('../services/HtmlFormatterService', () => ({
 jest.mock('../services/ReportSenderService', () => ({
   ReportSenderService: jest.fn(),
 }));
-jest.mock('../services/LicenseService', () => ({
-  LicenseService: jest.fn().mockImplementation(() => ({
-    getStatus: jest.fn().mockReturnValue({ active: true, expired: false, daysRemaining: 14, runs: 0 }),
-    formatBanner: jest.fn().mockReturnValue('  🟢 rd-pulse trial — 14 days remaining (run 1)'),
-    htmlWatermark: jest.fn().mockReturnValue(''),
-    recordRun: jest.fn(),
-  })),
-}));
 jest.mock('fs', () => ({ writeFileSync: jest.fn() }));
 jest.mock('../utils/logger', () => ({
   printHeader: jest.fn(),
@@ -212,7 +204,7 @@ describe('runPulse()', () => {
 
   it('uses HtmlFormatterService when --format is html', async () => {
     await runPulse(makeOpts({ format: 'html' }), VALID_ENV);
-    expect(mockHtmlFormatUnified).toHaveBeenCalledWith(FAKE_REPORT, { owner: 'acme', repo: 'backend', jiraDomain: 'https://acme.atlassian.net' }, '');
+    expect(mockHtmlFormatUnified).toHaveBeenCalledWith(FAKE_REPORT, { owner: 'acme', repo: 'backend', jiraDomain: 'https://acme.atlassian.net' });
     expect(mockFormatUnified).not.toHaveBeenCalled();
     expect(mockWriteFileSync).toHaveBeenCalledWith('PULSE_REPORT.html', '<html>report</html>', 'utf8');
   });
