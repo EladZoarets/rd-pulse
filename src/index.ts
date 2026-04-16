@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
-import { AnalyzeOptions, JiraFetchOptions, PulseOptions, UnifiedReport, ActivityContext } from './types';
+import { AnalyzeOptions, JiraFetchOptions, PulseOptions, UnifiedReport, ActivityContext, JiraSprintContext } from './types';
 import { GitHubService, DEFAULT_BIG_PR_THRESHOLDS } from './services/GitHubService';
 import { JiraService } from './services/JiraService';
 import { IntelligenceService } from './services/IntelligenceService';
@@ -86,12 +86,48 @@ program
     }
   });
 
+// ── Sprint data builder ───────────────────────────────────────────────────────
+
+function buildSprintData(jiraCtx: JiraSprintContext): ReportPayload['sprintData'] {
+  const totalIssues =
+    jiraCtx.doneIssues.length + jiraCtx.inProgressIssues.length + jiraCtx.todoIssues.length;
+  if (totalIssues === 0) return undefined;
+
+  const overallPercent = Math.round((jiraCtx.doneIssues.length / totalIssues) * 100);
+
+  // Group issues by assignee across all statuses
+  const userMap = new Map<string, { done: number; inProgress: number; total: number }>();
+
+  function tally(issues: JiraSprintContext['doneIssues'], status: 'done' | 'inProgress' | 'todo') {
+    for (const issue of issues) {
+      const name = issue.assignee ?? 'Unassigned';
+      const u = userMap.get(name) ?? { done: 0, inProgress: 0, total: 0 };
+      if (status === 'done') u.done++;
+      else if (status === 'inProgress') u.inProgress++;
+      u.total++;
+      userMap.set(name, u);
+    }
+  }
+
+  tally(jiraCtx.doneIssues, 'done');
+  tally(jiraCtx.inProgressIssues, 'inProgress');
+  tally(jiraCtx.todoIssues, 'todo');
+
+  const users = Array.from(userMap.entries())
+    .map(([user, counts]) => ({ user, ...counts }))
+    .filter((u) => u.user !== 'Unassigned')          // exclude unassigned bucket
+    .sort((a, b) => b.total - a.total);
+
+  return { overallPercent, users };
+}
+
 // ── IngestPayload builder ─────────────────────────────────────────────────────
 
 export function buildIngestPayload(
   report: UnifiedReport,
   githubCtx: ActivityContext,
-  workspaceId: string
+  workspaceId: string,
+  jiraCtx?: JiraSprintContext
 ): ReportPayload {
   const hasHighSeverity = report.risks.some((r) => r.severity === 'high');
   const hasSprintJeopardy = report.risks.some(
@@ -120,6 +156,7 @@ export function buildIngestPayload(
       type: h.type.toLowerCase(),
       description: h.description,
     })),
+    sprintData: jiraCtx ? buildSprintData(jiraCtx) : undefined,
   };
 }
 
@@ -187,7 +224,7 @@ export async function runPulse(opts: PulseOptions, env: NodeJS.ProcessEnv): Prom
 
     if (sender) {
       try {
-        const payload = buildIngestPayload(report, githubCtx, workspaceId!);
+        const payload = buildIngestPayload(report, githubCtx, workspaceId!, jiraCtx);
         await sender.sendReport(payload);
         log('Report sent to rd-pulse server');
       } catch (err) {

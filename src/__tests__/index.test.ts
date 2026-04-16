@@ -375,4 +375,62 @@ describe('buildIngestPayload()', () => {
     expect(payload.insights[0].type).toBe('pr_merged');
     expect(payload.insights[0].description).toBe('Auth middleware merged.');
   });
+
+  // ── sprintData ────────────────────────────────────────────────────────────
+
+  it('omits sprintData when jiraCtx is not provided', () => {
+    const payload = buildIngestPayload(baseReport, baseGithubCtx, 'ws-001');
+    expect(payload.sprintData).toBeUndefined();
+  });
+
+  it('omits sprintData when jiraCtx has zero issues', () => {
+    const emptyJira = {
+      boardId: '42', sprintId: 1, sprintName: 'Sprint 1', sprintEndDate: null,
+      todoIssues: [], inProgressIssues: [], doneIssues: [],
+    };
+    const payload = buildIngestPayload(baseReport, baseGithubCtx, 'ws-001', emptyJira);
+    expect(payload.sprintData).toBeUndefined();
+  });
+
+  it('computes overallPercent from done/total', () => {
+    const jiraCtx = {
+      boardId: '42', sprintId: 1, sprintName: 'Sprint 1', sprintEndDate: null,
+      doneIssues: [
+        { key: 'A-1', summary: 'Done1', status: 'DONE' as const, issueType: 'Story', assignee: 'Alice', storyPoints: null, labels: [], epicKey: null, epicName: null },
+        { key: 'A-2', summary: 'Done2', status: 'DONE' as const, issueType: 'Story', assignee: 'Bob', storyPoints: null, labels: [], epicKey: null, epicName: null },
+      ],
+      inProgressIssues: [
+        { key: 'A-3', summary: 'WIP', status: 'IN_PROGRESS' as const, issueType: 'Story', assignee: 'Alice', storyPoints: null, labels: [], epicKey: null, epicName: null },
+      ],
+      todoIssues: [
+        { key: 'A-4', summary: 'Todo', status: 'TO_DO' as const, issueType: 'Story', assignee: 'Bob', storyPoints: null, labels: [], epicKey: null, epicName: null },
+      ],
+    };
+    const payload = buildIngestPayload(baseReport, baseGithubCtx, 'ws-001', jiraCtx);
+    // 2 done out of 4 total = 50%
+    expect(payload.sprintData?.overallPercent).toBe(50);
+  });
+
+  it('builds per-user breakdown excluding Unassigned', () => {
+    const jiraCtx = {
+      boardId: '42', sprintId: 1, sprintName: 'Sprint 1', sprintEndDate: null,
+      doneIssues: [
+        { key: 'A-1', summary: 'Done1', status: 'DONE' as const, issueType: 'Story', assignee: 'Alice', storyPoints: null, labels: [], epicKey: null, epicName: null },
+      ],
+      inProgressIssues: [
+        { key: 'A-2', summary: 'WIP', status: 'IN_PROGRESS' as const, issueType: 'Story', assignee: 'Alice', storyPoints: null, labels: [], epicKey: null, epicName: null },
+      ],
+      todoIssues: [
+        { key: 'A-3', summary: 'Todo', status: 'TO_DO' as const, issueType: 'Story', assignee: null, storyPoints: null, labels: [], epicKey: null, epicName: null },
+      ],
+    };
+    const payload = buildIngestPayload(baseReport, baseGithubCtx, 'ws-001', jiraCtx);
+    const users = payload.sprintData?.users ?? [];
+    // Alice should appear, Unassigned should not
+    expect(users).toHaveLength(1);
+    expect(users[0].user).toBe('Alice');
+    expect(users[0].done).toBe(1);
+    expect(users[0].inProgress).toBe(1);
+    expect(users[0].total).toBe(2);
+  });
 });

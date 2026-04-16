@@ -21,6 +21,18 @@ export interface ReportInsight {
   description: string;
 }
 
+export interface UserSprintPulse {
+  user: string;
+  done: number;
+  inProgress: number;
+  total: number;
+}
+
+export interface SprintData {
+  overallPercent: number;
+  users: UserSprintPulse[];
+}
+
 export interface ReportPayload {
   workspaceId: string;
   reportType: string;
@@ -30,6 +42,7 @@ export interface ReportPayload {
   summary: ReportSummary;
   risks: ReportRisk[];
   insights: ReportInsight[];
+  sprintData?: SprintData;
 }
 
 export class ReportSenderService {
