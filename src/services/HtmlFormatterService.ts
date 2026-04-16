@@ -174,7 +174,23 @@ function renderDonut(donePercent: number, wipPercent: number): string {
   </svg>`;
 }
 
-function renderDangerZoneCards(risks: RiskItem[]): string {
+const PR_REF_RE = /^PR\s*#(\d+)$/i;
+const JIRA_KEY_RE = /^[A-Z][A-Z0-9]+-\d+$/;
+
+function refToLink(ref: string, owner: string, repo: string, jiraDomain?: string): string {
+  const pr = PR_REF_RE.exec(ref);
+  if (pr) {
+    const url = `https://github.com/${owner}/${repo}/pull/${pr[1]}`;
+    return `<a href="${url}" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem;font-weight:600;color:#2563eb;background:#eff6ff;padding:.2rem .6rem;border-radius:5px;text-decoration:none;margin:.2rem .2rem 0 0">↗ ${esc(ref)}</a>`;
+  }
+  if (JIRA_KEY_RE.test(ref) && jiraDomain) {
+    const url = `${jiraDomain.replace(/\/$/, '')}/browse/${ref}`;
+    return `<a href="${url}" target="_blank" rel="noreferrer" style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem;font-weight:600;color:#0369a1;background:#e0f2fe;padding:.2rem .6rem;border-radius:5px;text-decoration:none;margin:.2rem .2rem 0 0">↗ ${esc(ref)}</a>`;
+  }
+  return '';
+}
+
+function renderDangerZoneCards(risks: RiskItem[], owner = '', repo = '', jiraDomain?: string): string {
   const severityStyle: Record<string, string> = {
     high:   'border-left:4px solid #ef4444;background:#fef2f2',
     medium: 'border-left:4px solid #f59e0b;background:#fffbeb',
@@ -182,15 +198,19 @@ function renderDangerZoneCards(risks: RiskItem[]): string {
   };
   const severityIcon: Record<string, string> = { high: '🔴', medium: '🟡', low: '🟢' };
 
-  return risks.map((r) => `
+  return risks.map((r) => {
+    const links = (r.refs ?? []).map((ref) => refToLink(ref, owner, repo, jiraDomain)).filter(Boolean).join('');
+    return `
     <div style="padding:.85rem 1rem;border-radius:8px;margin-bottom:.65rem;${severityStyle[r.severity] ?? ''}">
       <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
         <span>${severityIcon[r.severity] ?? '⚪'}</span>
         <span style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#475569">${esc(r.type)}</span>
         <span class="badge badge-${r.severity}" style="margin-left:auto">${esc(r.severity)}</span>
       </div>
-      <p style="font-size:.875rem;color:#1e293b;margin:0">${esc(r.description)}</p>
-    </div>`).join('');
+      <p style="font-size:.875rem;color:#1e293b;margin:0 0 .4rem">${esc(r.description)}</p>
+      ${links ? `<div>${links}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 function renderPersonalPulseCards(pulse: PersonalPulse[], risks: RiskItem[]): string {
@@ -250,7 +270,7 @@ function renderTopicBars(topics: TopicBreakdown[]): string {
   }).join('');
 }
 
-function renderGitHubTimeline(highlights: GitHubHighlight[]): string {
+function renderGitHubTimeline(highlights: GitHubHighlight[], owner = '', repo = ''): string {
   const typeStyle: Record<string, { icon: string; color: string; bg: string }> = {
     PR_MERGED:    { icon: '✅', color: '#059669', bg: '#ecfdf5' },
     PR_IN_REVIEW: { icon: '👁', color: '#2563eb', bg: '#eff6ff' },
@@ -260,11 +280,18 @@ function renderGitHubTimeline(highlights: GitHubHighlight[]): string {
 
   return highlights.map((h) => {
     const s = typeStyle[h.type] ?? { icon: '•', color: '#475569', bg: '#f8fafc' };
+
+    // Build a clickable ref if we can derive a GitHub URL from it
+    const prMatch = /^(?:PR\s*#?|#)(\d+)$/i.exec(h.ref);
+    const refEl = prMatch && owner && repo
+      ? `<a href="https://github.com/${owner}/${repo}/pull/${prMatch[1]}" target="_blank" rel="noreferrer" style="font-weight:600;font-size:.85rem;color:${s.color};text-decoration:none;border-bottom:1px dashed ${s.color}">${esc(h.ref)} ↗</a>`
+      : `<span style="font-weight:600;font-size:.85rem;color:${s.color}">${esc(h.ref)}</span>`;
+
     return `<div style="display:flex;gap:.75rem;align-items:flex-start;padding:.6rem .75rem;border-radius:8px;background:${s.bg};margin-bottom:.5rem">
       <span style="font-size:1rem;line-height:1.4">${s.icon}</span>
       <div style="flex:1;min-width:0">
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-          <span style="font-weight:600;font-size:.85rem;color:${s.color}">${esc(h.ref)}</span>
+          ${refEl}
           <span style="font-size:.75rem;color:#64748b">by ${esc(h.author)}</span>
           <span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${s.color};margin-left:auto">${esc(h.type.replace(/_/g, ' '))}</span>
         </div>
@@ -394,8 +421,11 @@ ${main}
 </html>`;
   }
 
-  formatUnified(report: UnifiedReport): string {
+  formatUnified(report: UnifiedReport, linkCtx?: { owner?: string; repo?: string; jiraDomain?: string }, watermark = ''): string {
     const repo = report.repo || '(unknown repo)';
+    const owner = linkCtx?.owner ?? '';
+    const repoName = linkCtx?.repo ?? '';
+    const jiraDomain = linkCtx?.jiraDomain;
     const githubHighlights = report.githubHighlights ?? [];
     const topicBreakdown = report.topicBreakdown ?? [];
     const risks = report.risks ?? [];
@@ -434,7 +464,7 @@ ${main}
     // ── Danger Zone ───────────────────────────────────────────────────────────
     const dangerSection = risks.length > 0 ? `<section>
       <h2>Danger Zone ⚠️</h2>
-      ${renderDangerZoneCards(risks)}
+      ${renderDangerZoneCards(risks, owner, repoName, jiraDomain)}
     </section>` : '';
 
     // ── Personal Pulse ────────────────────────────────────────────────────────
@@ -452,7 +482,7 @@ ${main}
     // ── GitHub Activity ───────────────────────────────────────────────────────
     const githubSection = githubHighlights.length > 0 ? `<section class="full-width">
       <h2>GitHub Activity</h2>
-      ${renderGitHubTimeline(githubHighlights)}
+      ${renderGitHubTimeline(githubHighlights, owner, repoName)}
     </section>` : '';
 
     // ── Manager's Note ────────────────────────────────────────────────────────
@@ -485,6 +515,7 @@ ${main}
 <html lang="en">
 ${head}
 <body>
+${watermark}
 ${header}
 ${main}
 </body>
