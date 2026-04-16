@@ -28,18 +28,16 @@ GitHub + Jira  →  rdpulse-connector (AI analysis)  →  HTML report
 
 Download from https://www.docker.com/products/docker-desktop
 
-### 2. Clone the repo
+### 2. Download the setup files
 
 ```bash
-git clone https://github.com/EladZoarets/rd-pulse.git
-cd rd-pulse
+curl -o docker-compose.yml https://raw.githubusercontent.com/EladZoarets/rd-pulse/main/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/EladZoarets/rd-pulse/main/.env.example
 ```
 
-### 3. Create your `.env` file
+No need to clone the repo — Docker pulls the image automatically.
 
-```bash
-cp .env.example .env
-```
+### 3. Fill in `.env`
 
 Fill in `.env`:
 

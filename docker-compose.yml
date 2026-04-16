@@ -1,6 +1,6 @@
 services:
   rdpulse:
-    build: ./docker
+    image: eladzoarets766/rdpulse-dashboard:latest
     ports:
       - "3000:3000"
     volumes:
@@ -17,7 +17,7 @@ services:
       JIRA_EMAIL: ${JIRA_EMAIL}
       JIRA_TOKEN: ${JIRA_TOKEN}
       JIRA_BOARD: ${JIRA_BOARD}
-      # Schedule (default: 8 AM weekdays)
+      # Schedule (default: 8 AM weekdays Mon-Fri)
       CRON_SCHEDULE: ${CRON_SCHEDULE:-0 8 * * 1-5}
       DAYS: ${DAYS:-1}
 
