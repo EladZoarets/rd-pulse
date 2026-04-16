@@ -47,6 +47,14 @@ export const mockReportGood: ReportDetail = {
       description: 'Team merged 8 PRs this week, up 25% from last sprint.',
     },
   ],
+  sprintData: {
+    overallPercent: 82,
+    users: [
+      { user: 'Alice',   done: 5, inProgress: 1, total: 7 },
+      { user: 'Bob',     done: 4, inProgress: 2, total: 6 },
+      { user: 'Charlie', done: 3, inProgress: 0, total: 4 },
+    ],
+  },
 }
 
 export const mockReportAtRisk: ReportDetail = {
@@ -128,6 +136,14 @@ export const mockReportAtRisk: ReportDetail = {
       description: 'Average PR cycle time increased to 3.2 days, up from 1.8 days last sprint.',
     },
   ],
+  sprintData: {
+    overallPercent: 54,
+    users: [
+      { user: 'Alice',   done: 3, inProgress: 2, total: 8 },
+      { user: 'Bob',     done: 2, inProgress: 1, total: 5 },
+      { user: 'Charlie', done: 1, inProgress: 2, total: 6 },
+    ],
+  },
 }
 
 export const mockReportCritical: ReportDetail = {
@@ -229,6 +245,15 @@ export const mockReportCritical: ReportDetail = {
       description: 'At current velocity, 7 tickets will carry over to the next sprint.',
     },
   ],
+  sprintData: {
+    overallPercent: 28,
+    users: [
+      { user: 'Alice',   done: 1, inProgress: 2, total: 9 },
+      { user: 'Bob',     done: 0, inProgress: 3, total: 8 },
+      { user: 'Charlie', done: 2, inProgress: 1, total: 5 },
+      { user: 'Dana',    done: 0, inProgress: 1, total: 4 },
+    ],
+  },
 }
 
 export const mockReports: ReportDetail[] = [mockReportGood, mockReportAtRisk, mockReportCritical]

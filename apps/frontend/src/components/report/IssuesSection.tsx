@@ -97,7 +97,7 @@ export function IssuesSection({ risks, activeFilter, onClearFilter }: Props) {
                 </div>
                 <p className="mb-3 text-sm leading-relaxed text-slate-600">{risk.description}</p>
                 {risk.links.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 pt-1">
                     {risk.links.map((link, j) => (
                       <a
                         key={j}
@@ -105,9 +105,9 @@ export function IssuesSection({ risks, activeFilter, onClearFilter }: Props) {
                         target="_blank"
                         rel="noreferrer"
                         data-testid="issue-link"
-                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 hover:text-blue-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                       >
-                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                        <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
                         {link.label}
                       </a>
                     ))}

@@ -5,6 +5,7 @@ import { PageContainer } from '../components/layout/PageContainer'
 import { HealthBanner } from '../components/report/HealthBanner'
 import { ChartsRow } from '../components/report/ChartsRow'
 import { IssuesSection } from '../components/report/IssuesSection'
+import { SprintCompletionSection } from '../components/report/SprintCompletionSection'
 import { NavigationLinks } from '../components/report/NavigationLinks'
 import type { ActiveFilter } from '../components/report/types'
 import { useReport } from '../hooks/useReport'
@@ -45,6 +46,9 @@ export function ReportPage() {
     <AppShell>
       <PageContainer>
         <HealthBanner report={report} />
+        {report.sprintData && (
+          <SprintCompletionSection sprintData={report.sprintData} />
+        )}
         <ChartsRow
           risks={report.risks}
           activeFilter={activeFilter}

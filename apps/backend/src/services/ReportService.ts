@@ -11,6 +11,7 @@ interface ReportRow {
   summary: { health: string; headline: string }
   risks: IngestPayload['risks']
   insights: IngestPayload['insights']
+  sprint_data: IngestPayload['sprintData'] | null
   slug: string | null
   last_synced_at: string
   run_count: number
@@ -33,6 +34,7 @@ export class ReportService {
         summary: payload.summary,
         risks: payload.risks,
         insights: payload.insights,
+        sprint_data: payload.sprintData ?? null,
         last_synced_at: now,
       })
       .eq('workspace_id', workspaceId)
@@ -70,6 +72,7 @@ export class ReportService {
         summary: payload.summary,
         risks: payload.risks,
         insights: payload.insights,
+        sprint_data: payload.sprintData ?? null,
         last_synced_at: now,
         run_count: 1,
       })
@@ -109,6 +112,7 @@ export class ReportService {
       summary: row.summary as ReportDetail['summary'],
       risks: row.risks,
       insights: row.insights,
+      sprintData: row.sprint_data ?? undefined,
       slug: row.slug ?? undefined,
       url: `${baseUrl}/report/${row.id}`,
       lastSyncedAt: row.last_synced_at,

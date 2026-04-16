@@ -28,6 +28,18 @@ const insightSchema = z.object({
   description: z.string(),
 })
 
+const userSprintPulseSchema = z.object({
+  user: z.string(),
+  done: z.number().int().min(0),
+  inProgress: z.number().int().min(0),
+  total: z.number().int().min(0),
+})
+
+const sprintDataSchema = z.object({
+  overallPercent: z.number().min(0).max(100),
+  users: z.array(userSprintPulseSchema),
+})
+
 const ingestSchema = z.object({
   workspaceId: z.string(),
   reportType: z.string(),
@@ -40,6 +52,7 @@ const ingestSchema = z.object({
   }),
   risks: z.array(riskSchema),
   insights: z.array(insightSchema),
+  sprintData: sprintDataSchema.optional(),
 })
 
 // POST /api/v1/ingest/report

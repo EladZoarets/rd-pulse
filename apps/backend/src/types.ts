@@ -31,6 +31,19 @@ export interface InsightPayload {
   description: string
 }
 
+// Sprint completion data (connector → backend, optional)
+export interface UserSprintPulse {
+  user: string
+  done: number
+  inProgress: number
+  total: number
+}
+
+export interface SprintData {
+  overallPercent: number
+  users: UserSprintPulse[]
+}
+
 // Ingest payload (connector → backend)
 export interface IngestPayload {
   workspaceId: string
@@ -44,6 +57,7 @@ export interface IngestPayload {
   }
   risks: RiskPayload[]
   insights: InsightPayload[]
+  sprintData?: SprintData
 }
 
 export interface IngestResponse {
