@@ -1,7 +1,7 @@
 FROM node:20-alpine
 
 # Install the connector globally
-RUN npm install -g rdpulse-connector@0.2.3
+RUN npm install -g rdpulse-connector@0.2.4
 
 # Set up the dashboard server
 WORKDIR /server

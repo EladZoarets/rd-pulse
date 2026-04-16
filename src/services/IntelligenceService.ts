@@ -24,8 +24,15 @@ const MAX_PROMPT_CHARS = 80_000;
 const PR_BUDGET_FRACTION = 0.7;
 const COMMIT_BUDGET_FRACTION = 0.9;
 
-const DEFAULT_PROMPT_PATH = path.resolve(process.cwd(), 'prompt.md');
-const DEFAULT_UNIFIED_PROMPT_PATH = path.resolve(process.cwd(), 'prompt-unified.md');
+function resolvePromptPath(filename: string): string {
+  const cwdPath = path.resolve(process.cwd(), filename);
+  if (fs.existsSync(cwdPath)) return cwdPath;
+  // Fallback: prompt files ship with the npm package next to dist/
+  return path.resolve(__dirname, '../../', filename);
+}
+
+const DEFAULT_PROMPT_PATH = resolvePromptPath('prompt.md');
+const DEFAULT_UNIFIED_PROMPT_PATH = resolvePromptPath('prompt-unified.md');
 
 function loadSystemPrompt(promptPath: string = DEFAULT_PROMPT_PATH): string {
   if (fs.existsSync(promptPath)) {

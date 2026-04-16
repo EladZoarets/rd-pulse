@@ -99,12 +99,9 @@ app.get('/api/status', (_req, res) => {
 
 app.post('/api/run', (_req, res) => {
   if (isRunning) return res.status(409).json({ error: 'Report generation already in progress' });
-  runConnector((err, filename) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ filename, url: `/report/${filename}` });
-  });
-  // Respond immediately — client polls /api/status
+  // Respond immediately — client polls /api/status for completion
   res.json({ started: true });
+  runConnector(() => {});
 });
 
 app.get('/report/:filename', (req, res) => {
