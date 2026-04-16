@@ -1,90 +1,66 @@
 # rd-pulse
 
-AI-powered R&D intelligence agent that transforms engineering activity into a daily briefing for managers.
+AI-powered R&D intelligence agent that transforms GitHub + Jira activity into a daily briefing for engineering managers.
 
-Instead of context-switching between GitHub, Slack, and Jira, you get one structured report — written to a file or your inbox — that tells you exactly what shipped, who's at risk, and what needs your attention.
-
----
-
-## Overview
-
-rd-pulse has two parts:
-
-| Part | What it is |
-|------|-----------|
-| **Web dashboard** | A hosted app where your team's reports appear automatically |
-| **Connector CLI** | A command you run locally (or in CI) to generate and push reports |
+Instead of context-switching between GitHub and Jira, you get one structured HTML report — with sprint health, risk cards, clickable PR and Jira links, sprint completion charts, and a per-developer pulse — delivered to your browser automatically every morning.
 
 ---
 
-## Web Dashboard
+## How It Works
 
-The dashboard is live at **https://rd-pulse-five.vercel.app**
-
-It shows all reports pushed by the connector CLI. No login required — access is scoped per workspace.
-
-**Setup flow:**
-
-1. Open the dashboard → go to **/setup**
-2. Enter a workspace name → click **Create Workspace**
-3. Copy the generated `npx` install command (pre-filled with your workspace ID + JWT)
-4. Run that command in your repo (see [Connector CLI](#connector-cli) below)
-5. Once the connector sends its first heartbeat the workspace flips to **Active** and you land on **/reports**
-
----
-
-## Connector CLI
-
-The connector runs locally or in CI and pushes reports to the web dashboard.
-
-### Quick start (npx — no install needed)
-
-```bash
-npx rdpulse-connector pulse \
-  --owner your-org \
-  --repo  your-repo \
-  --board 42
+```
+GitHub + Jira  →  rdpulse-connector (AI analysis)  →  HTML report
+                                                        ↕
+                                              Docker dashboard (localhost:3000)
+                                              lists all reports + runs on cron
 ```
 
-The `npx` command on the **/setup** page is pre-filled with `--workspace` and `--jwt` flags pointing to your workspace. Copy it from there.
+- The **Docker dashboard** runs on your machine or server at `localhost:3000`
+- A built-in **cron job** generates a fresh report every weekday morning at 8 AM
+- Reports are saved as self-contained HTML files — no database, no cloud, no SaaS
+- Every report has **clickable links** that open the relevant Jira ticket or GitHub PR
 
-### Global install (optional)
+---
+
+## Quick Start (Docker)
+
+### 1. Install Docker Desktop
+
+Download from https://www.docker.com/products/docker-desktop
+
+### 2. Clone the repo
 
 ```bash
-npm install -g rdpulse-connector
-rdpulse-connector pulse --owner your-org --repo your-repo --board 42
+git clone https://github.com/EladZoarets/rd-pulse.git
+cd rd-pulse
 ```
 
-### Prerequisites
-
-- **Node.js 18+** — check with `node --version`. Download at https://nodejs.org
-- A GitHub personal access token — https://github.com/settings/tokens (`repo` scope)
-- An OpenAI API key — https://platform.openai.com/api-keys (paid plan, GPT-4o)
-- A Jira API token — https://id.atlassian.com/manage-profile/security/api-tokens
-
-### Configuration
-
-Copy `.env.example` to `.env` and fill in your keys:
+### 3. Create your `.env` file
 
 ```bash
 cp .env.example .env
 ```
 
+Fill in `.env`:
+
 ```env
-# Required for both commands
+# GitHub
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+GITHUB_OWNER=your-org
+GITHUB_REPO=your-repo
+
+# OpenAI
 OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxx
 
-# Required for the pulse command
+# Jira
 JIRA_DOMAIN=https://your-org.atlassian.net
 JIRA_EMAIL=you@yourcompany.com
 JIRA_TOKEN=your-jira-api-token
+JIRA_BOARD=42
 
-# Required to push reports to the web dashboard
-# Copy these from the /setup page — they are pre-filled for you
-RDPULSE_SERVER=https://rdpulse-backend-production.up.railway.app
-WORKSPACE_ID=ws-xxxxxxxxxxxx
-RDPULSE_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+# Schedule (default: 8 AM Mon-Fri)
+CRON_SCHEDULE=0 8 * * 1-5
+DAYS=1
 ```
 
 **Where to get each key:**
@@ -93,191 +69,130 @@ RDPULSE_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 |-----|-------|
 | `GITHUB_TOKEN` | https://github.com/settings/tokens → New token (classic) → `repo` scope |
 | `OPENAI_API_KEY` | https://platform.openai.com/api-keys |
-| `JIRA_TOKEN` | https://id.atlassian.com/manage-profile/security/api-tokens → Create API token |
+| `JIRA_TOKEN` | https://id.atlassian.com/manage-profile/security/api-tokens |
 | `JIRA_DOMAIN` | Your Atlassian URL, e.g. `https://acme.atlassian.net` |
-| `RDPULSE_SERVER` / `WORKSPACE_ID` / `RDPULSE_JWT` | Copied from the **/setup** page of the dashboard |
+| `JIRA_BOARD` | Open Jira → your board → the number in the URL (`.../boards/42`) |
 
----
+### 4. Start the dashboard
 
-## Commands
+```bash
+docker compose up -d
+```
 
-The connector CLI has two commands:
+Open **http://localhost:3000** in your browser.
 
-| Command | What it does |
-|---------|-------------|
-| `analyze` | GitHub-only daily digest — no Jira needed |
-| `pulse` | Unified GitHub + Jira sprint report, pushes to web dashboard |
+Click **Generate Report Now** to run the first report immediately, or wait for the cron schedule.
 
 ---
 
 ## What You Get
 
-### `analyze` — GitHub Daily Digest
+### Dashboard (localhost:3000)
 
-**Markdown** (`--format md`, default) — saves to `DAILY_PULSE.md`:
+- List of all generated reports with timestamps
+- **Generate Report Now** button for on-demand runs
+- Status indicator: Idle / Generating / Error
+- Auto-refreshes every 30 seconds
 
+### HTML Report
+
+Each report is a self-contained interactive dashboard:
+
+| Section | What it shows |
+|---------|--------------|
+| **Health Banner** | 🟢 ON TRACK / 🟡 NEEDS ATTENTION / 🔴 AT RISK |
+| **Sprint Progress** | SVG donut chart — done % with KPI strip (done · WIP · to do) |
+| **Danger Zone** | Risk cards colour-coded by severity with clickable Jira/GitHub links |
+| **Personal Pulse** | Per-developer bar charts with OVERLOADED and UNASSIGNED badges |
+| **Topic Breakdown** | Stacked progress bars per Jira epic / label |
+| **GitHub Activity** | Timeline: ✅ merged · 👁 in review · 👻 ghost work · ⚡ direct commit |
+| **Manager's Note** | LLM-generated narrative for non-technical stakeholders |
+
+**Clickable links in reports:**
+- Risk cards show `↗ PR #42` and `↗ PROJ-123` badges — click to open the PR or Jira ticket directly
+- GitHub activity refs (e.g. `PR #12`) link to the GitHub pull request
+
+---
+
+## Trial & Licensing
+
+rd-pulse includes a **14-day free trial** — no sign-up required.
+
+- Full features during the trial
+- A `🟢 rd-pulse trial — N days remaining` message prints in the terminal on every run
+- After 14 days: a sticky banner appears at the top of generated HTML reports with a link to purchase a license
+
+Trial state is stored in `/reports/.rdpulse-trial.json` (inside the Docker volume) so it persists across container restarts.
+
+To purchase a license: **https://rdpulse.io/license**
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `GITHUB_TOKEN` | ✅ | — | GitHub personal access token (`repo` scope) |
+| `GITHUB_OWNER` | ✅ | — | GitHub organisation or username |
+| `GITHUB_REPO` | ✅ | — | Repository name |
+| `OPENAI_API_KEY` | ✅ | — | OpenAI API key (GPT-4o, paid plan) |
+| `JIRA_DOMAIN` | ✅ | — | Atlassian URL, e.g. `https://acme.atlassian.net` |
+| `JIRA_EMAIL` | ✅ | — | Your Atlassian account email |
+| `JIRA_TOKEN` | ✅ | — | Jira API token |
+| `JIRA_BOARD` | ✅ | — | Jira board ID (number from the board URL) |
+| `CRON_SCHEDULE` | | `0 8 * * 1-5` | Cron expression for automatic report generation |
+| `DAYS` | | `1` | Days of GitHub history to include |
+| `MODEL` | | `gpt-4o` | OpenAI model override |
+
+### Customising the cron schedule
+
+Edit `CRON_SCHEDULE` in `.env`:
+
+```env
+CRON_SCHEDULE=0 7 * * 1-5   # 7 AM weekdays
+CRON_SCHEDULE=0 9 * * 1     # 9 AM Mondays only
+CRON_SCHEDULE=0 8 * * *     # 8 AM every day
 ```
-# Daily Pulse — acme/backend
-_Generated: 2026-03-31_
-
-## Manager's Note
-Strong week. Auth shipped and payments unblocked the mobile team...
-
-## Team Progress
-
-### bob ⚠️ AT RISK
-- **Merged:** 0 PRs · **Open:** 3 · **Commits:** 2
-- ⚠️ No merged work despite 3 open PRs — may be blocked
-
-### alice
-- **Merged:** 5 PRs · **Open:** 1 · **Commits:** 12
-- Merged PR #42: feat: OAuth2 login
-
-## Feature Themes / Key Achievements / Work in Progress / Risks & Blockers
-...
-```
-
-**HTML** (`--format html`) — self-contained dashboard saved to `DAILY_PULSE.html`:
-- Stat cards: Critical Risks · Active Contributors · PRs Merged
-- Activity feed (achievements, feature themes, WIP, large PRs)
-- Critical Risks sidebar with ⚠️ items
-- Team Pulse sidebar with per-contributor AT RISK badges
 
 ---
 
-### `pulse` — Unified Sprint Dashboard
+## Running Without Docker (CLI only)
 
-Combines GitHub activity + Jira sprint data in one report. Saved to `PULSE_REPORT.md` or `PULSE_REPORT.html`. Also pushed to the web dashboard when `RDPULSE_SERVER`, `WORKSPACE_ID`, and `RDPULSE_JWT` are set.
-
-**HTML** (`--format html`) — visual manager dashboard:
-- **Health banner** — 🟢 ON TRACK / 🟡 NEEDS ATTENTION / 🔴 AT RISK based on sprint risks
-- **SVG donut chart** — done % with green/amber arcs and KPI strip (done · in progress · to do)
-- **Danger Zone cards** — colour-coded risk cards (red=high, amber=medium, green=low) with severity badges
-- **Personal Pulse** — per-developer mini bar charts with OVERLOADED and UNASSIGNED badges
-- **Topic Breakdown** — inline stacked progress bars per Jira epic/topic
-- **GitHub Activity** — styled timeline (✅ merged, 👁 in review, 👻 ghost work, ⚡ direct commit)
-- **Manager's Note** — LLM-generated summary at the bottom
-
-**Ghost Work detection** — PRs with no Jira ticket reference in the branch name or title are flagged automatically.
-
----
-
-## CLI Flags
-
-### `analyze` flags
-
-| Flag | Default | What it does |
-|------|---------|-------------|
-| `--owner` | *(required)* | GitHub organisation or username |
-| `--repo` | *(required)* | Repository name |
-| `--days` | `1` | Days of history to fetch |
-| `--format` | `md` | `md` or `html` |
-| `--output` | `DAILY_PULSE.md/html` | Output file path |
-| `--model` | `gpt-4o` | OpenAI model |
-| `--big-pr-files` | `50` | Flag PRs with ≥N changed files |
-| `--big-pr-lines` | `500` | Flag PRs with ≥N changed lines |
-
-### `pulse` flags
-
-| Flag | Default | What it does |
-|------|---------|-------------|
-| `--owner` | *(required)* | GitHub organisation or username |
-| `--repo` | *(required)* | Repository name |
-| `--board` | *(required)* | Jira board ID |
-| `--days` | `1` | Days of GitHub history to fetch |
-| `--format` | `md` | `md` or `html` |
-| `--output` | `PULSE_REPORT.md/html` | Output file path |
-| `--model` | `gpt-4o` | OpenAI model |
-| `--jira-fields` | *(default set)* | Comma-separated Jira fields to fetch |
-| `--jira-sp-field` | `story_points` | Custom story points field name |
-
----
-
-## Example Commands
+If you want to generate reports without the dashboard:
 
 ```bash
-# GitHub-only daily digest (Markdown)
-npx rdpulse-connector analyze --owner your-org --repo your-repo
+npm install -g rdpulse-connector
 
-# GitHub-only HTML dashboard
-npx rdpulse-connector analyze --owner your-org --repo your-repo --format html
-open DAILY_PULSE.html
+rdpulse-connector pulse \
+  --owner your-org \
+  --repo  your-repo \
+  --board 42 \
+  --format html \
+  --output report.html
 
-# Unified GitHub + Jira sprint report (Markdown)
-npx rdpulse-connector pulse --owner your-org --repo your-repo --board 42
-
-# Unified HTML manager dashboard
-npx rdpulse-connector pulse --owner your-org --repo your-repo --board 42 --format html
-open PULSE_REPORT.html
-
-# Last 7 days, save to a custom path
-npx rdpulse-connector pulse --owner your-org --repo your-repo --board 42 \
-  --days 7 --output reports/sprint-12.html --format html
-
-# Custom Jira fields + story points field
-npx rdpulse-connector pulse --owner your-org --repo your-repo --board 42 \
-  --jira-fields summary,status,assignee,story_points \
-  --jira-sp-field customfield_10016
+open report.html
 ```
+
+**Prerequisites:** Node.js 18+, `.env` file in the current directory with all required variables.
 
 ---
 
-## Deploying Your Own Backend
-
-The default backend at `https://rdpulse-backend-production.up.railway.app` is shared. To run your own:
-
-### 1. Supabase (database)
-
-1. Create a free project at https://supabase.com
-2. Go to **Settings → API**
-3. Copy **Project URL** → this is your `SUPABASE_URL`
-4. Copy the **`service_role`** key (not `anon`) → this is your `SUPABASE_SERVICE_KEY`
-
-### 2. Railway (hosting)
-
-1. Create a free account at https://railway.app
-2. Click **New Project → Deploy from GitHub repo** → select this repo
-3. Set the root directory to `apps/backend`
-4. Add these environment variables under **Variables**:
-
-```
-SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
-SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-JWT_SECRET=<run: openssl rand -hex 32>
-```
-
-5. Railway auto-deploys on every push. Your backend URL appears under **Settings → Networking → Public Domain**.
-
-### 3. Vercel (frontend)
-
-1. Create a free account at https://vercel.com
-2. Click **Add New → Project → Import Git Repository** → select this repo
-3. Leave the root directory as `/` (uses the root `vercel.json`)
-4. Add these environment variables:
-
-```
-VITE_USE_MOCK=false
-VITE_API_BASE_URL=https://your-railway-domain.up.railway.app
-```
-
-5. Click **Deploy**. Your dashboard URL appears once the build finishes.
-
----
-
-## LLM Prompts (optional)
+## Customising the AI Prompt
 
 The AI instructions live in prompt files at the project root. Edit them freely:
 
 | File | Used by |
 |------|---------|
-| `prompt.md` | `analyze` command |
-| `prompt-unified.md` | `pulse` command |
+| `prompt.md` | `analyze` command (GitHub only) |
+| `prompt-unified.md` | `pulse` command (GitHub + Jira) |
 
-What you can customise:
-- **Risk criteria** — e.g. flag PRs stale for >3 days instead of 7
-- **Team context** — add your team members' names
-- **Custom sections** — e.g. "highlight any PRs missing a Jira ticket link"
-- **Language** — translate the output to any language
+Things you can customise:
+- **Risk thresholds** — e.g. flag PRs stale for >3 days instead of 7
+- **Team context** — add your team members' names and roles
+- **Custom sections** — e.g. "highlight any PRs missing a Jira ticket"
+- **Output language** — translate the report to any language
 
 > The JSON schema block at the top of each prompt file must stay intact.
 
@@ -287,82 +202,65 @@ What you can customise:
 
 ```
 rd-pulse/
-├── prompt.md                       # LLM instructions for analyze command
-├── prompt-unified.md               # LLM instructions for pulse command
-├── .env                            # Your API keys (gitignored)
-├── .env.example                    # Template — copy to .env and fill in
-├── vercel.json                     # Vercel monorepo build config
-├── apps/
-│   ├── frontend/                   # React 18 + Vite dashboard (Vercel)
-│   └── backend/                    # Express + Supabase API (Railway)
-├── packages/
-│   └── types/                      # Shared TypeScript interfaces
-└── src/                            # Connector CLI source
-    ├── index.ts                    # CLI entry — analyze + pulse commands
-    ├── types.ts                    # All shared TypeScript interfaces
-    ├── services/
-    │   ├── GitHubService.ts        # GitHub API — PRs, commits, ghost work detection
-    │   ├── JiraService.ts          # Jira Agile API — sprint context, issue buckets
-    │   ├── IntelligenceService.ts  # OpenAI — analyze() + analyzeUnified()
-    │   ├── FormatterService.ts     # Markdown renderer
-    │   ├── HtmlFormatterService.ts # HTML dashboard renderer
-    │   └── ReportSenderService.ts  # Pushes reports to the web dashboard
-    └── utils/
-        ├── logger.ts               # ASCII header, progress logs, fatal error handler
-        └── tokenCounter.ts         # Token budget enforcement, tiered trimming
+├── docker/
+│   ├── Dockerfile              # Installs rdpulse-connector + Express dashboard
+│   ├── server.js               # Express server + cron job + report serving
+│   ├── public/
+│   │   └── index.html          # Dashboard UI (generate, list, poll status)
+│   └── package.json
+├── docker-compose.yml          # Wires env vars + volume for report persistence
+├── prompt.md                   # LLM instructions for analyze command
+├── prompt-unified.md           # LLM instructions for pulse command
+├── .env.example                # Template — copy to .env and fill in
+├── LICENSE                     # Commercial license terms
+└── src/                        # Connector CLI source (TypeScript)
+    ├── index.ts                # CLI entry — analyze + pulse commands
+    ├── types.ts                # All shared TypeScript interfaces
+    └── services/
+        ├── GitHubService.ts        # GitHub API — PRs, commits, ghost work detection
+        ├── JiraService.ts          # Jira Agile API — sprint context, issue buckets
+        ├── IntelligenceService.ts  # OpenAI — unified analysis
+        ├── FormatterService.ts     # Markdown renderer
+        ├── HtmlFormatterService.ts # HTML dashboard renderer (clickable links, charts)
+        ├── LicenseService.ts       # Trial tracking + watermark injection
+        └── ReportSenderService.ts  # (optional) push reports to remote server
 ```
 
 ---
 
 ## Troubleshooting
 
-**`401 Incorrect API key`** — Your `OPENAI_API_KEY` in `.env` is wrong. Check it at https://platform.openai.com/api-keys.
+**`connection refused` on localhost:3000** — Docker container isn't running. Run `docker compose up -d` and check `docker compose logs`.
 
-**`429 Request too large`** — Your OpenAI tier has a low TPM limit. The tool trims the prompt automatically, but try `--days 1` or upgrade your plan.
+**`prompt.md not found`** — Happens if the connector can't locate its prompt files. Make sure you're using `rdpulse-connector@0.2.5+` which resolves files relative to the npm package directory automatically.
 
-**`Bad credentials` from GitHub** — Your `GITHUB_TOKEN` is expired or missing the `repo` scope. Regenerate at https://github.com/settings/tokens.
+**`401 Incorrect API key`** — Check `OPENAI_API_KEY` in `.env`. Verify at https://platform.openai.com/api-keys.
 
-**`System prompt file not found`** — `prompt.md` or `prompt-unified.md` is missing. Run `git checkout prompt.md prompt-unified.md` to restore.
+**`Bad credentials` from GitHub** — `GITHUB_TOKEN` is expired or missing `repo` scope. Regenerate at https://github.com/settings/tokens.
 
-**Jira `401 Unauthorized`** — Check `JIRA_EMAIL` and `JIRA_TOKEN` in `.env`. The token is your Atlassian API token, not your password.
+**`Jira 401 Unauthorized`** — Check `JIRA_EMAIL` and `JIRA_TOKEN`. The token is your Atlassian API token, not your password.
 
-**Jira `No active sprint found`** — The board has no active sprint. Start a sprint in Jira first, or check your `--board` ID is correct.
+**`No active sprint found`** — The board has no active sprint. Start a sprint in Jira first, or verify `JIRA_BOARD` is the correct board ID.
 
-**Dashboard shows no reports** — Make sure `RDPULSE_SERVER`, `WORKSPACE_ID`, and `RDPULSE_JWT` are set in `.env`. These are copied from the **/setup** page of the dashboard.
+**Report generates but links don't open Jira** — Make sure `JIRA_DOMAIN` in `.env` is the full URL including `https://`, e.g. `https://acme.atlassian.net`.
 
 ---
 
 ## Roadmap
 
-### Stage 1 — GitHub Daily Digest ✅
-- [x] GitHubService — PRs, commits, large PR detection, ghost work flagging
-- [x] IntelligenceService — LLM analysis with token budget management
-- [x] FormatterService — Markdown with per-contributor progress and risk flags
-- [x] HtmlFormatterService — self-contained HTML dashboard
-- [x] CLI — `analyze` command with `--format md|html`
+### Done
+- [x] GitHub daily digest (PRs, commits, large PR detection, ghost work flagging)
+- [x] Jira sprint context (issue buckets, story points, epic grouping)
+- [x] Unified LLM analysis combining GitHub + Jira signals
+- [x] Self-contained HTML report with donut chart, risk cards, pulse bars, topic breakdown
+- [x] Clickable Jira and GitHub links in risk cards and activity timeline
+- [x] Docker dashboard with built-in cron, on-demand generation, report listing
+- [x] 14-day trial with terminal banner + post-expiry watermark
+- [x] Proprietary commercial LICENSE
 
-### Stage 2 — Unified GitHub + Jira Sprint Report ✅
-- [x] JiraService — active sprint, issue status buckets, story points, custom fields
-- [x] Ghost work detection — PRs with no Jira ticket reference auto-flagged
-- [x] IntelligenceService — `analyzeUnified()` combining GitHub + Jira signals
-- [x] FormatterService — `formatUnified()` with Summary, Topic Breakdown, Danger Zone, Personal Pulse
-- [x] HtmlFormatterService — visual manager dashboard with donut chart, risk cards, pulse bars
-- [x] CLI — `pulse` command with `--board`, `--jira-fields`, `--jira-sp-field`
-
-### Stage 3 — Web Dashboard ✅
-- [x] Backend API — Express + Supabase, workspace management, report ingestion
-- [x] Frontend — React 18 + Vite + TanStack Query dashboard
-- [x] Connector — `ReportSenderService` pushes reports from CLI to dashboard
-- [x] Deployment — Railway (backend), Vercel (frontend), npm (connector CLI)
-
-### Stage 4 — Full Daily Email Digest *(planned)*
-- [ ] Slack integration — fetch messages and threads from relevant channels
-- [ ] Cross-source correlation — link PRs ↔ Jira tickets ↔ Slack threads
-- [ ] Email delivery — daily digest via SMTP or SendGrid
-- [ ] Scheduling — cron job or external trigger for automated daily runs
-
-### Stage 5 — AI Assist Tracking *(planned)*
-- [ ] `AiAssistStat` types + `ai-assisted` PR label detection in GitHubService
-- [ ] AI assist stats surfaced in unified LLM prompt and report
-- [ ] Markdown + HTML AI Assist section (per-developer adoption rate)
-- [ ] PR template helper — drops `.github/pull_request_template.md` with AI-assisted checkbox
+### Planned
+- [ ] SMTP email delivery — send report to manager's inbox on cron schedule
+- [ ] Slack integration — fetch channel messages and correlate with PRs/tickets
+- [ ] License key validation — online key check tied to purchase
+- [ ] Multi-repo support — aggregate reports across multiple repositories
+- [ ] AI assist tracking — detect and report AI-assisted PRs per developer
