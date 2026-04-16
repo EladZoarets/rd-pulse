@@ -8,3 +8,4 @@ PULSE_REPORT.md
 PULSE_REPORT.html
 *.js.map
 .vercel
+.env*.local
