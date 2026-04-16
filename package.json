@@ -1,6 +1,6 @@
 {
   "name": "rdpulse-connector",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "AI-powered R&D intelligence agent that transforms GitHub activity into actionable daily digests",
   "workspaces": [
     "packages/*",

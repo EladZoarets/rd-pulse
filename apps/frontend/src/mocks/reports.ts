@@ -54,6 +54,11 @@ export const mockReportGood: ReportDetail = {
       { user: 'Bob',     done: 4, inProgress: 2, total: 6 },
       { user: 'Charlie', done: 3, inProgress: 0, total: 4 },
     ],
+    topics: [
+      { topic: 'Auth & Security',   totalIssues: 5, doneCount: 5, inProgressCount: 0, todoCount: 0, completionPercent: 100 },
+      { topic: 'API Layer',         totalIssues: 6, doneCount: 5, inProgressCount: 1, todoCount: 0, completionPercent: 83  },
+      { topic: 'Frontend',          totalIssues: 6, doneCount: 4, inProgressCount: 1, todoCount: 1, completionPercent: 67  },
+    ],
   },
 }
 
@@ -142,6 +147,11 @@ export const mockReportAtRisk: ReportDetail = {
       { user: 'Alice',   done: 3, inProgress: 2, total: 8 },
       { user: 'Bob',     done: 2, inProgress: 1, total: 5 },
       { user: 'Charlie', done: 1, inProgress: 2, total: 6 },
+    ],
+    topics: [
+      { topic: 'Auth & Security',   totalIssues: 5, doneCount: 3, inProgressCount: 1, todoCount: 1, completionPercent: 60 },
+      { topic: 'API Layer',         totalIssues: 8, doneCount: 4, inProgressCount: 2, todoCount: 2, completionPercent: 50 },
+      { topic: 'Frontend',          totalIssues: 6, doneCount: 2, inProgressCount: 2, todoCount: 2, completionPercent: 33 },
     ],
   },
 }
@@ -252,6 +262,12 @@ export const mockReportCritical: ReportDetail = {
       { user: 'Bob',     done: 0, inProgress: 3, total: 8 },
       { user: 'Charlie', done: 2, inProgress: 1, total: 5 },
       { user: 'Dana',    done: 0, inProgress: 1, total: 4 },
+    ],
+    topics: [
+      { topic: 'Checkout Flow',     totalIssues: 10, doneCount: 2, inProgressCount: 3, todoCount: 5, completionPercent: 20 },
+      { topic: 'Payment Gateway',   totalIssues: 8,  doneCount: 1, inProgressCount: 2, todoCount: 5, completionPercent: 13 },
+      { topic: 'Auth & Security',   totalIssues: 4,  doneCount: 2, inProgressCount: 1, todoCount: 1, completionPercent: 50 },
+      { topic: 'Infra & DevOps',    totalIssues: 4,  doneCount: 0, inProgressCount: 1, todoCount: 3, completionPercent: 0  },
     ],
   },
 }

@@ -39,9 +39,19 @@ export interface UserSprintPulse {
   total: number        // done + inProgress + todo
 }
 
+export interface TopicBreakdown {
+  topic: string
+  totalIssues: number
+  doneCount: number
+  inProgressCount: number
+  todoCount: number
+  completionPercent: number  // 0–100
+}
+
 export interface SprintData {
   overallPercent: number   // 0–100
   users: UserSprintPulse[]
+  topics?: TopicBreakdown[]
 }
 
 // Ingest payload (connector → backend)

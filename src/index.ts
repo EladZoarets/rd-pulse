@@ -192,7 +192,14 @@ export function buildIngestPayload(
       type: h.type.toLowerCase(),
       description: h.description,
     })),
-    sprintData: jiraCtx ? buildSprintData(jiraCtx) : undefined,
+    sprintData: (() => {
+      const base = jiraCtx ? buildSprintData(jiraCtx) : undefined;
+      if (!base) return undefined;
+      return {
+        ...base,
+        topics: report.topicBreakdown.length > 0 ? report.topicBreakdown : undefined,
+      };
+    })(),
   };
 }
 

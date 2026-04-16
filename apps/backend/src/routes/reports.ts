@@ -35,9 +35,19 @@ const userSprintPulseSchema = z.object({
   total: z.number().int().min(0),
 })
 
+const topicBreakdownSchema = z.object({
+  topic: z.string(),
+  totalIssues: z.number().int().min(0),
+  doneCount: z.number().int().min(0),
+  inProgressCount: z.number().int().min(0),
+  todoCount: z.number().int().min(0),
+  completionPercent: z.number().min(0).max(100),
+})
+
 const sprintDataSchema = z.object({
   overallPercent: z.number().min(0).max(100),
   users: z.array(userSprintPulseSchema),
+  topics: z.array(topicBreakdownSchema).optional(),
 })
 
 const ingestSchema = z.object({

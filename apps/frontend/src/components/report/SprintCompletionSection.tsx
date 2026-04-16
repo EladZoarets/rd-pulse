@@ -1,4 +1,4 @@
-import type { SprintData } from '@rdpulse/types'
+import type { SprintData, TopicBreakdown } from '@rdpulse/types'
 
 interface Props {
   sprintData: SprintData
@@ -81,7 +81,7 @@ function CompletionBar({ pct, label, subLabel, height = 'h-4' }: BarProps) {
 }
 
 export function SprintCompletionSection({ sprintData }: Props) {
-  const { overallPercent, users } = sprintData
+  const { overallPercent, users, topics } = sprintData
 
   return (
     <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -126,6 +126,27 @@ export function SprintCompletionSection({ sprintData }: Props) {
                 />
               )
             })}
+          </div>
+        </>
+      )}
+
+      {/* Per-topic breakdown */}
+      {topics && topics.length > 0 && (
+        <>
+          <div className="mb-3 mt-6 h-px bg-slate-100" />
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400">
+            By Topic
+          </h3>
+          <div className="space-y-4">
+            {topics.map((t: TopicBreakdown) => (
+              <CompletionBar
+                key={t.topic}
+                pct={t.completionPercent}
+                label={t.topic}
+                subLabel={`${t.doneCount} done · ${t.inProgressCount} in progress · ${t.todoCount} to do`}
+                height="h-3"
+              />
+            ))}
           </div>
         </>
       )}
